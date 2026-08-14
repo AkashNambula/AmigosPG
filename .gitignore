@@ -1,0 +1,32 @@
+# Configuration and Secrets
+.env
+.env.*
+!.env.example
+backend/.env
+
+# Databases
+*.db
+backend/*.db
+
+# Python environments and compilation files
+__pycache__/
+*.pyc
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Node dependencies and build files
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+build/
+
+# Logs
+*.log
+backend/*.log
+
+# User uploaded storage (Aadhaar, Passport Photos, QR, screenshot proofs)
+uploads/
+backend/uploads/
