@@ -26,3 +26,10 @@ class User(Base):
     problem_reports = relationship("PersonProblemReport", back_populates="reporter", foreign_keys="[PersonProblemReport.reporter_id]")
     notifications = relationship("Notification", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
+
+    @property
+    def room_number(self):
+        for b in self.bookings:
+            if b.status == "APPROVED" and b.room:
+                return b.room.room_number
+        return "N/A"

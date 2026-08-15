@@ -25,9 +25,10 @@ export default function AdminRooms() {
   const [deposit, setDeposit] = useState('');
   const [desc, setDesc] = useState('');
   const [facilitiesStr, setFacilitiesStr] = useState('');
-  const [availStatus, setAvailStatus] = useState('available');
+  const [availStatus, setAvailStatus] = useState('VACANCY');
 
   const [uploadingRoomId, setUploadingRoomId] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const fetchRooms = async () => {
     try {
@@ -102,7 +103,8 @@ export default function AdminRooms() {
     setDeposit('');
     setDesc('');
     setFacilitiesStr('');
-    setAvailStatus('available');
+    setAvailStatus('VACANCY');
+    setShowDeleteConfirm(false);
   };
 
   const handleEditClick = (room) => {
@@ -124,14 +126,13 @@ export default function AdminRooms() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this room? This action is permanent.')) return;
-    
     try {
       await API.delete(`/rooms/${id}`);
-      setToast({ type: 'success', message: 'Room deleted successfully.' });
+      setToast({ type: 'success', message: `Room ${roomNumber} deleted successfully.` });
+      resetForm();
       fetchRooms();
     } catch (err) {
-      setToast({ type: 'error', message: 'Failed to delete room.' });
+      setToast({ type: 'error', message: err.friendlyMessage || `Failed to delete Room ${roomNumber}.` });
     }
   };
 
@@ -320,15 +321,14 @@ export default function AdminRooms() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase">Availability Status</label>
+                <label className="block text-xs font-semibold text-gray-700 uppercase">Room Status</label>
                 <select
                   value={availStatus}
                   onChange={(e) => setAvailStatus(e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
                 >
-                  <option value="available">Available</option>
-                  <option value="full">Full (Fully Booked)</option>
-                  <option value="maintenance">Maintenance</option>
+                  <option value="VACANCY">VACANCY</option>
+                  <option value="OCCUPIED">OCCUPIED</option>
                 </select>
               </div>
             </div>
@@ -385,23 +385,50 @@ export default function AdminRooms() {
             )}
 
             <div className="pt-2 flex gap-2">
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-black hover:bg-gray-900 text-white font-semibold text-sm uppercase rounded transition-colors"
-              >
-                {isEditing ? 'Save Room Updates' : 'Add Room configuration'}
-              </button>
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDelete(roomId);
-                    resetForm();
-                  }}
-                  className="px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-sm uppercase rounded transition-colors"
-                >
-                  Delete Room
-                </button>
+              {!showDeleteConfirm && (
+                <>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-black hover:bg-gray-900 text-white font-semibold text-sm uppercase rounded transition-colors"
+                  >
+                    {isEditing ? 'Save Room Updates' : 'Add Room configuration'}
+                  </button>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-sm uppercase rounded transition-colors"
+                    >
+                      Delete Room
+                    </button>
+                  )}
+                </>
+              )}
+              {showDeleteConfirm && (
+                <div className="w-full p-4 border border-red-205 bg-red-50/25 rounded flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+                  <div className="text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-red-600 animate-pulse animate-duration-1000" />
+                    <span>Are you sure you want to delete Room {roomNumber}?</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-1.5 border border-gray-300 text-gray-700 hover:border-black rounded text-xs font-bold uppercase bg-white transition-all cursor-pointer select-none"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleDelete(roomId);
+                      }}
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold uppercase transition-all cursor-pointer select-none"
+                    >
+                      Delete Room
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </form>
@@ -425,7 +452,9 @@ export default function AdminRooms() {
                   {floorRooms.map(room => {
                     const statusColors = {
                       available: 'border-green-300 bg-green-50/10 text-green-800 hover:border-green-500',
+                      VACANCY: 'border-green-300 bg-green-50/10 text-green-800 hover:border-green-500',
                       full: 'border-gray-300 bg-gray-50/50 text-gray-700 hover:border-gray-500',
+                      OCCUPIED: 'border-red-300 bg-red-50/20 text-red-800 hover:border-red-500',
                       maintenance: 'border-red-300 bg-red-50/20 text-red-800 hover:border-red-500'
                     };
                     const colorClass = statusColors[room.availability_status] || 'border-gray-200 hover:border-black';

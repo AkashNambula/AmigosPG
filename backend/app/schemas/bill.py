@@ -11,6 +11,23 @@ class PaymentBase(BaseModel):
 class PaymentCreate(PaymentBase):
     pass
 
+class BillOutSimple(BaseModel):
+    id: int
+    user_id: int
+    rent_amount: float
+    electricity_amount: float
+    food_amount: float
+    maintenance_amount: float
+    other_amount: float
+    total_amount: float
+    due_date: datetime
+    status: str
+    created_at: datetime
+    user: Optional[UserOut] = None
+
+    class Config:
+        from_attributes = True
+
 class PaymentOut(PaymentBase):
     id: int
     bill_id: int
@@ -21,6 +38,7 @@ class PaymentOut(PaymentBase):
     verified_at: Optional[datetime] = None
     verified_by: Optional[int] = None
     admin_notes: Optional[str] = None
+    bill: Optional[BillOutSimple] = None
 
     class Config:
         from_attributes = True

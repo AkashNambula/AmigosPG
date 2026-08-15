@@ -35,6 +35,7 @@ class RoomBase(BaseModel):
 
 class RoomCreate(RoomBase):
     facilities: List[str] = []
+    availability_status: Optional[str] = "VACANCY"
 
 class RoomUpdate(BaseModel):
     floor: Optional[int] = None

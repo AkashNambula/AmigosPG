@@ -129,6 +129,7 @@ class UserOut(UserBase):
     account_status: str
     joining_date: datetime
     created_at: datetime
+    room_number: Optional[str] = "N/A"
 
     class Config:
         from_attributes = True

@@ -169,6 +169,28 @@ def delete_qr_code(
         db.refresh(settings_record)
     return settings_record
 
+@router.get("/settings/qr")
+def get_qr_code_file(
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    settings_record = db.query(PaymentSettings).first()
+    if not settings_record or not settings_record.qr_code_path:
+        raise HTTPException(status_code=404, detail="QR Code scanner image not found.")
+        
+    filename = os.path.basename(settings_record.qr_code_path)
+    filepath = os.path.join(settings.UPLOAD_DIR, "rooms", filename)
+    
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="QR image file does not exist on server.")
+        
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(filepath)
+    if not mime_type:
+        mime_type = "image/png"
+        
+    return FileResponse(path=filepath, media_type=mime_type)
+
 @router.get("/proofs/all", response_model=List[PaymentOut])
 def get_payment_proofs(
     admin = Depends(get_current_admin),

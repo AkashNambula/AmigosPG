@@ -38,7 +38,7 @@ def get_rooms(
     
     if current_user.role == "tenant":
         # Tenants should only see available or full rooms, not maintenance rooms
-        query = query.filter(Room.availability_status.in_(["available", "full"]))
+        query = query.filter(Room.availability_status.in_(["available", "full", "VACANCY", "OCCUPIED"]))
     else:
         # Admins can filter by availability_status (including maintenance)
         if availability_status:
@@ -70,14 +70,14 @@ def get_room_availability(
     db: Session = Depends(get_db)
 ):
     if current_user.role == "tenant":
-        all_rooms = db.query(Room).filter(Room.availability_status.in_(["available", "full"])).all()
+        all_rooms = db.query(Room).filter(Room.availability_status.in_(["available", "full", "VACANCY", "OCCUPIED"])).all()
     else:
         all_rooms = db.query(Room).all()
         
     total_rooms = len(all_rooms)
-    available_rooms = sum(1 for r in all_rooms if r.available_beds > 0 and r.availability_status == "available")
-    full_rooms = sum(1 for r in all_rooms if r.available_beds == 0 or r.availability_status == "full")
-    total_available_beds = sum(r.available_beds for r in all_rooms if r.availability_status == "available")
+    available_rooms = sum(1 for r in all_rooms if r.available_beds > 0 and r.availability_status in ["available", "VACANCY"])
+    full_rooms = sum(1 for r in all_rooms if r.available_beds == 0 or r.availability_status in ["full", "OCCUPIED"])
+    total_available_beds = sum(r.available_beds for r in all_rooms if r.availability_status in ["available", "VACANCY"])
     total_occupied_beds = sum(r.occupied_beds for r in all_rooms)
     
     return {
@@ -134,7 +134,7 @@ def create_room(
         monthly_price=room_in.monthly_price,
         security_deposit=room_in.security_deposit,
         description=room_in.description,
-        availability_status="available"
+        availability_status=room_in.availability_status or "VACANCY"
     )
     db.add(new_room)
     db.commit()
@@ -242,6 +242,15 @@ def delete_room(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found."
+        )
+        
+    # Check if there are any bookings or related records
+    from app.models.booking import Booking
+    has_bookings = db.query(Booking).filter(Booking.room_id == room_id).first()
+    if has_bookings:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This room cannot be deleted because it has active bookings or related records. Please mark it as OCCUPIED / INACTIVE instead."
         )
         
     room_num = room.room_number

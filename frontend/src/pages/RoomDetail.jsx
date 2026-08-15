@@ -190,7 +190,16 @@ export default function RoomDetail() {
             </div>
             <div>
               <p className="text-xs text-gray-400 uppercase font-semibold">Status</p>
-              <p className="text-lg font-bold text-green-600 mt-0.5 capitalize">{room.availability_status}</p>
+              <span className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider mt-1 ${
+                (room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0)
+                  ? 'bg-red-50 text-red-600 border-red-150'
+                  : 'bg-green-50 text-green-700 border-green-150'
+              }`}>
+                {(room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0)
+                  ? 'OCCUPIED'
+                  : 'VACANCY'
+                }
+              </span>
             </div>
           </div>
 
@@ -221,19 +230,12 @@ export default function RoomDetail() {
 
           {!showBookingForm && (
             <div className="pt-2">
-              {room.available_beds === 0 || room.availability_status === 'full' ? (
+              {(room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0) ? (
                 <button
                   disabled
-                  className="w-full py-3 bg-gray-100 text-gray-400 font-semibold text-sm uppercase rounded border border-gray-200 cursor-not-allowed"
+                  className="w-full py-3 bg-red-50 text-red-500 border border-red-200 font-semibold text-sm uppercase rounded cursor-not-allowed text-center"
                 >
-                  Room Full
-                </button>
-              ) : room.availability_status === 'maintenance' ? (
-                <button
-                  disabled
-                  className="w-full py-3 bg-red-50 text-red-500 border border-red-200 font-semibold text-sm uppercase rounded cursor-not-allowed"
-                >
-                  Under Maintenance
+                  OCCUPIED
                 </button>
               ) : (
                 <button

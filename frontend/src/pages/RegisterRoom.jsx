@@ -86,12 +86,10 @@ export default function RegisterRoom() {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
                     {floorRooms.map(room => {
-                      const isFull = room.available_beds === 0 || room.availability_status === 'full';
-                      const isMaintenance = room.availability_status === 'maintenance';
+                      const isOccupied = room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0;
                       
                       const getStatusStyle = () => {
-                        if (isMaintenance) return 'border-red-300 bg-red-50/20 text-red-800 hover:border-red-500';
-                        if (isFull) return 'border-gray-300 bg-gray-50/50 text-gray-700 hover:border-gray-500';
+                        if (isOccupied) return 'border-red-300 bg-red-50/20 text-red-800 hover:border-red-500';
                         return 'border-green-300 bg-green-50/10 text-green-800 hover:border-green-500';
                       };
 
@@ -105,8 +103,12 @@ export default function RegisterRoom() {
                           <span className="text-base font-bold font-mono tracking-tight">Room {room.room_number}</span>
                           <span className="text-[9px] uppercase font-bold text-gray-400">{room.sharing_type}</span>
                           <span className="text-[9px] font-semibold text-gray-500">₹{room.monthly_price}/mo</span>
-                          <span className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-white border border-gray-100 mt-1">
-                            {room.available_beds} Vacant
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-1 border ${
+                            isOccupied 
+                              ? 'bg-red-50 text-red-600 border-red-150' 
+                              : 'bg-green-50 text-green-700 border-green-150'
+                          }`}>
+                            {isOccupied ? 'OCCUPIED' : 'VACANCY'}
                           </span>
                         </button>
                       );
@@ -121,15 +123,11 @@ export default function RegisterRoom() {
           <div className="flex gap-6 text-xs text-gray-500 justify-center pt-4">
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 bg-green-50/10 border border-green-300 rounded"></span>
-              <span>Available</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-gray-50/50 border border-gray-300 rounded"></span>
-              <span>Full</span>
+              <span>Vacancy</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 bg-red-50/20 border border-red-300 rounded"></span>
-              <span>Maintenance</span>
+              <span>Occupied</span>
             </div>
           </div>
         </div>
