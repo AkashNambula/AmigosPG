@@ -22,7 +22,7 @@ class Room(Base):
     # Relationships
     images = relationship("RoomImage", back_populates="room", cascade="all, delete-orphan")
     facilities = relationship("RoomFacility", back_populates="room", cascade="all, delete-orphan")
-    bookings = relationship("Booking", back_populates="room")
+    bookings = relationship("Booking", back_populates="room", cascade="all, delete-orphan")
 
 class RoomImage(Base):
     __tablename__ = "room_images"

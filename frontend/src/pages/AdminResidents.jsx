@@ -14,6 +14,7 @@ export default function AdminResidents() {
   const [statusFilter, setStatusFilter] = useState('');
   
   const [updatingId, setUpdatingId] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const fetchResidents = async () => {
     try {
@@ -48,8 +49,6 @@ export default function AdminResidents() {
   };
 
   const handleStatusChange = async (userId, newStatus) => {
-    if (!window.confirm(`Are you sure you want to change this resident status to ${newStatus}?`)) return;
-
     setUpdatingId(userId);
     try {
       await API.put(`/users/${userId}/status?account_status=${newStatus}`);
@@ -60,6 +59,14 @@ export default function AdminResidents() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const triggerStatusChangeConfirm = (userId, newStatus) => {
+    setConfirmDialog({
+      userId,
+      newStatus,
+      message: `Are you sure you want to change this resident status to ${newStatus}?`
+    });
   };
 
   const getStatusBadge = (status) => {
@@ -84,7 +91,8 @@ export default function AdminResidents() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto animate-slide-in">
+    <>
+      <div className="space-y-8 max-w-5xl mx-auto animate-slide-in">
       <div className="border-b border-gray-200 pb-4">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 uppercase">
           USERS & RESIDENTS
@@ -190,16 +198,16 @@ export default function AdminResidents() {
                         <div className="flex justify-end gap-1.5">
                           {res.account_status !== 'active' && (
                             <button
-                              onClick={() => handleStatusChange(res.id, 'active')}
-                              className="px-2.5 py-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider transition-colors"
+                              onClick={() => triggerStatusChangeConfirm(res.id, 'active')}
+                              className="px-2.5 py-1 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-[10px] font-bold rounded uppercase tracking-wider transition-colors hover:border-green-400"
                             >
                               Activate
                             </button>
                           )}
                           {res.account_status !== 'inactive' && (
                             <button
-                              onClick={() => handleStatusChange(res.id, 'inactive')}
-                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-[10px] font-bold rounded uppercase tracking-wider transition-colors"
+                              onClick={() => triggerStatusChangeConfirm(res.id, 'inactive')}
+                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-[10px] font-bold rounded uppercase tracking-wider transition-colors hover:border-red-400"
                             >
                               Deactivate
                             </button>
@@ -214,14 +222,48 @@ export default function AdminResidents() {
           </div>
         )}
       </div>
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
-  );
+
+    {confirmDialog && (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 animate-fade-in">
+        <div className="bg-white border border-gray-200 rounded p-6 max-w-sm w-full mx-4 shadow-xl space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900 border-b border-gray-100 pb-2">
+            Confirm Status Change
+          </h3>
+          <p className="text-xs text-gray-600 leading-relaxed font-semibold">
+            {confirmDialog.message}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDialog(null)}
+              className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase bg-white hover:border-black transition-colors cursor-pointer select-none"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const { userId, newStatus } = confirmDialog;
+                setConfirmDialog(null);
+                await handleStatusChange(userId, newStatus);
+              }}
+              className="px-4 py-2 bg-black hover:bg-gray-900 text-white rounded text-xs font-bold uppercase transition-colors cursor-pointer select-none"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {toast && (
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(null)}
+      />
+    )}
+  </>
+);
 }

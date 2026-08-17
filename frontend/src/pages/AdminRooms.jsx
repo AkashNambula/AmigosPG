@@ -118,7 +118,7 @@ export default function AdminRooms() {
     setDeposit(room.security_deposit);
     setDesc(room.description || '');
     setFacilitiesStr(room.facilities?.map(f => f.facility_name).join(', ') || '');
-    setAvailStatus(room.availability_status);
+    setAvailStatus(room.availability_status === 'available' ? 'VACANCY' : (room.availability_status === 'full' ? 'OCCUPIED' : room.availability_status));
     setAvailableBeds(room.available_beds);
     setOccupiedBeds(room.occupied_beds);
     setRoomImages(room.images || []);
@@ -321,15 +321,42 @@ export default function AdminRooms() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase">Room Status</label>
-                <select
-                  value={availStatus}
-                  onChange={(e) => setAvailStatus(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
-                >
-                  <option value="VACANCY">VACANCY</option>
-                  <option value="OCCUPIED">OCCUPIED</option>
-                </select>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-2">Room Status</label>
+                <div className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => setAvailStatus('VACANCY')}
+                      className={`px-6 py-2.5 border text-xs font-bold uppercase rounded transition-all cursor-pointer select-none outline-none ${
+                        availStatus === 'VACANCY' || availStatus === 'available'
+                          ? 'bg-green-50 border-green-500 text-green-700 shadow-sm font-extrabold ring-1 ring-green-500'
+                          : 'bg-gray-50 border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      AVAILABLE
+                    </button>
+                    {(availStatus === 'VACANCY' || availStatus === 'available') && (
+                      <span className="text-[9px] font-bold text-green-600 tracking-wider mt-1">ACTIVE</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => setAvailStatus('OCCUPIED')}
+                      className={`px-6 py-2.5 border text-xs font-bold uppercase rounded transition-all cursor-pointer select-none outline-none ${
+                        availStatus === 'OCCUPIED' || availStatus === 'full'
+                          ? 'bg-red-50 border-red-500 text-red-700 shadow-sm font-extrabold ring-1 ring-red-500'
+                          : 'bg-gray-50 border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      OCCUPIED
+                    </button>
+                    {(availStatus === 'OCCUPIED' || availStatus === 'full') && (
+                      <span className="text-[9px] font-bold text-red-600 tracking-wider mt-1">ACTIVE</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

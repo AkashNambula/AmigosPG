@@ -11,6 +11,7 @@ export default function AdminBookings() {
   
   const [activeBooking, setActiveBooking] = useState(null);
   const [submittingStatus, setSubmittingStatus] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const location = useLocation();
 
   const fetchBookings = async () => {
@@ -39,8 +40,6 @@ export default function AdminBookings() {
   }, [location.state, bookings]);
 
   const handleStatusUpdate = async (id, status) => {
-    if (!window.confirm(`Are you sure you want to ${status.toLowerCase()} this booking request?`)) return;
-
     setSubmittingStatus(true);
     try {
       await API.put(`/bookings/${id}/status`, { status });
@@ -55,6 +54,14 @@ export default function AdminBookings() {
     } finally {
       setSubmittingStatus(false);
     }
+  };
+
+  const triggerStatusUpdateConfirm = (id, status) => {
+    setConfirmDialog({
+      id,
+      status,
+      message: `Are you sure you want to ${status.toLowerCase()} this booking request?`
+    });
   };
 
   const handleDownloadPDF = async (bookingId, roomNumber, firstName, lastName) => {
@@ -138,7 +145,8 @@ export default function AdminBookings() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto animate-slide-in">
+    <>
+      <div className="space-y-8 max-w-5xl mx-auto animate-slide-in">
       <div className="border-b border-gray-200 pb-4">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 uppercase">
           BOOKING REQUESTS
@@ -306,14 +314,14 @@ export default function AdminBookings() {
                   {activeBooking.status === 'PENDING' && (
                     <>
                       <button
-                        onClick={() => handleStatusUpdate(activeBooking.id, 'REJECTED')}
+                        onClick={() => triggerStatusUpdateConfirm(activeBooking.id, 'REJECTED')}
                         disabled={submittingStatus}
                         className="px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-bold rounded uppercase tracking-wider transition-colors"
                       >
                         Reject Request
                       </button>
                       <button
-                        onClick={() => handleStatusUpdate(activeBooking.id, 'APPROVED')}
+                        onClick={() => triggerStatusUpdateConfirm(activeBooking.id, 'APPROVED')}
                         disabled={submittingStatus}
                         className="px-4 py-2 bg-black hover:bg-gray-900 text-white text-xs font-bold rounded uppercase tracking-wider transition-colors"
                       >
@@ -328,13 +336,48 @@ export default function AdminBookings() {
         </div>
       )}
 
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
-  );
+
+    {confirmDialog && (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 animate-fade-in">
+        <div className="bg-white border border-gray-200 rounded p-6 max-w-sm w-full mx-4 shadow-xl space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900 border-b border-gray-100 pb-2">
+            Confirm Status Update
+          </h3>
+          <p className="text-xs text-gray-600 leading-relaxed font-semibold">
+            {confirmDialog.message}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDialog(null)}
+              className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase bg-white hover:border-black transition-colors cursor-pointer select-none"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const { id, status } = confirmDialog;
+                setConfirmDialog(null);
+                await handleStatusUpdate(id, status);
+              }}
+              className="px-4 py-2 bg-black hover:bg-gray-900 text-white rounded text-xs font-bold uppercase transition-colors cursor-pointer select-none"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {toast && (
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(null)}
+      />
+    )}
+  </>
+);
 }

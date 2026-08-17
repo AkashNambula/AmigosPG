@@ -244,15 +244,6 @@ def delete_room(
             detail="Room not found."
         )
         
-    # Check if there are any bookings or related records
-    from app.models.booking import Booking
-    has_bookings = db.query(Booking).filter(Booking.room_id == room_id).first()
-    if has_bookings:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This room cannot be deleted because it has active bookings or related records. Please mark it as OCCUPIED / INACTIVE instead."
-        )
-        
     room_num = room.room_number
     db.delete(room)
     db.commit()

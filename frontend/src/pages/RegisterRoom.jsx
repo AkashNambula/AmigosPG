@@ -89,8 +89,10 @@ export default function RegisterRoom() {
                       const isOccupied = room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0;
                       
                       const getStatusStyle = () => {
-                        if (isOccupied) return 'border-red-300 bg-red-50/20 text-red-800 hover:border-red-500';
-                        return 'border-green-300 bg-green-50/10 text-green-800 hover:border-green-500';
+                        if (isOccupied) {
+                          return 'bg-red-50/30 border-red-300 text-red-900 hover:border-red-500 hover:bg-red-50/50';
+                        }
+                        return 'bg-green-50/30 border-green-300 text-green-900 hover:border-green-500 hover:bg-green-50/50';
                       };
 
                       return (
@@ -101,14 +103,17 @@ export default function RegisterRoom() {
                           className={`p-4 rounded border text-center transition-all flex flex-col items-center justify-center space-y-1 cursor-pointer select-none outline-none ${getStatusStyle()}`}
                         >
                           <span className="text-base font-bold font-mono tracking-tight">Room {room.room_number}</span>
-                          <span className="text-[9px] uppercase font-bold text-gray-400">{room.sharing_type}</span>
-                          <span className="text-[9px] font-semibold text-gray-500">₹{room.monthly_price}/mo</span>
+                          <span className={`text-[9px] uppercase font-bold ${isOccupied ? 'text-red-700/70' : 'text-green-700/70'}`}>{room.sharing_type}</span>
+                          <span className={`text-[9px] font-semibold ${isOccupied ? 'text-red-800' : 'text-green-800'}`}>₹{room.monthly_price} / month</span>
+                          <span className={`text-[9px] font-bold ${isOccupied ? 'text-red-800' : 'text-green-800'}`}>
+                            {room.available_beds} VACANT
+                          </span>
                           <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider mt-1 border ${
                             isOccupied 
-                              ? 'bg-red-50 text-red-600 border-red-150' 
-                              : 'bg-green-50 text-green-700 border-green-150'
+                              ? 'bg-red-50 text-red-700 border-red-200' 
+                              : 'bg-green-50 text-green-700 border-green-200'
                           }`}>
-                            {isOccupied ? 'OCCUPIED' : 'VACANCY'}
+                            {isOccupied ? 'OCCUPIED' : 'AVAILABLE'}
                           </span>
                         </button>
                       );
@@ -122,11 +127,11 @@ export default function RegisterRoom() {
           {/* Legend */}
           <div className="flex gap-6 text-xs text-gray-500 justify-center pt-4">
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-green-50/10 border border-green-300 rounded"></span>
-              <span>Vacancy</span>
+              <span className="w-3 h-3 bg-green-50/30 border border-green-300 rounded"></span>
+              <span>Available</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-red-50/20 border border-red-300 rounded"></span>
+              <span className="w-3 h-3 bg-red-50/30 border border-red-300 rounded"></span>
               <span>Occupied</span>
             </div>
           </div>

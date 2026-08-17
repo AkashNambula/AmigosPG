@@ -68,7 +68,7 @@ async def create_booking(
             detail="Room not found."
         )
         
-    if room.availability_status != "available" or room.available_beds <= 0:
+    if room.availability_status not in ["available", "VACANCY"] or room.available_beds <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Selected room is not available for booking."
@@ -243,7 +243,7 @@ def update_booking_status(
 
     if new_status == "APPROVED":
         # Check capacity one more time
-        if room.available_beds <= 0 or room.availability_status != "available":
+        if room.available_beds <= 0 or room.availability_status not in ["available", "VACANCY"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot approve. Selected room has no vacant beds."
@@ -253,7 +253,7 @@ def update_booking_status(
         room.available_beds -= 1
         room.occupied_beds += 1
         if room.available_beds == 0:
-            room.availability_status = "full"
+            room.availability_status = "OCCUPIED"
             
         booking.status = "APPROVED"
         

@@ -82,6 +82,7 @@ export default function PayBills() {
   const [paymentSettings, setPaymentSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Form states (Admin Create Bill)
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -260,7 +261,6 @@ export default function PayBills() {
   };
 
   const handleRemoveQrCode = async () => {
-    if (!window.confirm("Are you sure you want to remove the QR Code?")) return;
     try {
       await API.delete('/bills/settings/qr');
       if (qrPreviewUrl) {
@@ -273,6 +273,13 @@ export default function PayBills() {
     } catch (err) {
       setToast({ type: 'error', message: 'Failed to remove QR Code.' });
     }
+  };
+
+  const triggerRemoveQrConfirm = () => {
+    setConfirmDialog({
+      action: 'removeQrCode',
+      message: 'Are you sure you want to remove the QR Code?'
+    });
   };
 
   const handleCopyUpiId = () => {
@@ -429,7 +436,8 @@ export default function PayBills() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <>
+      <div className="space-y-8 max-w-6xl mx-auto pb-12">
       {/* Title Header */}
       <div className="border-b border-gray-200 pb-4 flex justify-between items-center">
         <div>
@@ -636,7 +644,7 @@ export default function PayBills() {
                               setQrPreviewUrl('');
                             }
                           } else {
-                            await handleRemoveQrCode();
+                            triggerRemoveQrConfirm();
                           }
                         }}
                         className="text-[10px] uppercase font-bold text-red-500 hover:text-red-700 tracking-wider"
@@ -1124,13 +1132,49 @@ export default function PayBills() {
         </div>
       )}
 
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
-  );
+
+    {confirmDialog && (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 animate-fade-in">
+        <div className="bg-white border border-gray-200 rounded p-6 max-w-sm w-full mx-4 shadow-xl space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900 border-b border-gray-100 pb-2">
+            Confirm Action
+          </h3>
+          <p className="text-xs text-gray-600 leading-relaxed font-semibold">
+            {confirmDialog.message}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDialog(null)}
+              className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase bg-white hover:border-black transition-colors cursor-pointer select-none"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setConfirmDialog(null);
+                if (confirmDialog.action === 'removeQrCode') {
+                  await handleRemoveQrCode();
+                }
+              }}
+              className="px-4 py-2 bg-black hover:bg-gray-900 text-white rounded text-xs font-bold uppercase transition-colors cursor-pointer select-none"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {toast && (
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(null)}
+      />
+    )}
+  </>
+);
 }

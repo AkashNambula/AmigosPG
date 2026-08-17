@@ -192,12 +192,12 @@ export default function RoomDetail() {
               <p className="text-xs text-gray-400 uppercase font-semibold">Status</p>
               <span className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider mt-1 ${
                 (room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0)
-                  ? 'bg-red-50 text-red-600 border-red-150'
-                  : 'bg-green-50 text-green-700 border-green-150'
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : 'bg-green-50 text-green-700 border-green-200'
               }`}>
                 {(room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0)
                   ? 'OCCUPIED'
-                  : 'VACANCY'
+                  : 'AVAILABLE'
                 }
               </span>
             </div>
@@ -233,7 +233,7 @@ export default function RoomDetail() {
               {(room.availability_status === 'OCCUPIED' || room.availability_status === 'full' || room.available_beds === 0) ? (
                 <button
                   disabled
-                  className="w-full py-3 bg-red-50 text-red-500 border border-red-200 font-semibold text-sm uppercase rounded cursor-not-allowed text-center"
+                  className="w-full py-3 bg-red-50 text-red-700 border border-red-200 font-semibold text-sm uppercase rounded cursor-not-allowed text-center"
                 >
                   OCCUPIED
                 </button>
@@ -242,7 +242,7 @@ export default function RoomDetail() {
                   onClick={() => setShowBookingForm(true)}
                   className="w-full py-3 bg-black hover:bg-gray-900 text-white font-semibold text-sm uppercase rounded transition-colors"
                 >
-                  Book This Room
+                  Book Room
                 </button>
               )}
             </div>
