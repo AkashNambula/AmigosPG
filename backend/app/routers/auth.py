@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
+import random
+import string
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password, create_access_token
+from app.core.email import send_reset_code_email
 from app.models.user import User
 from app.models.audit import AuditLog
-from app.schemas.user import UserCreate, UserLogin, Token, UserOut
+from app.schemas.user import UserCreate, UserLogin, Token, UserOut, ForgotPasswordRequest, VerifyResetCodeRequest, ResetPasswordRequest
 from app.dependencies.auth import get_current_active_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -89,3 +92,72 @@ def login(login_in: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_active_user)):
     return current_user
+
+@router.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    email_lower = request.email.lower().strip()
+    user = db.query(User).filter(User.email == email_lower).first()
+    
+    if not user:
+        # Prevent email enumeration by returning a generic success message
+        return {"message": "If an account with that email exists, a reset code has been sent."}
+    
+    # Generate 6-digit OTP
+    reset_code = ''.join(random.choices(string.digits, k=6))
+    user.reset_code = reset_code
+    user.reset_code_expires = datetime.utcnow() + timedelta(minutes=15)
+    db.commit()
+    
+    background_tasks.add_task(
+        send_reset_code_email,
+        to_email=user.email,
+        code=reset_code,
+        user_name=user.first_name
+    )
+    
+    return {"message": "If an account with that email exists, a reset code has been sent."}
+
+@router.post("/verify-reset-code")
+def verify_reset_code(request: VerifyResetCodeRequest, db: Session = Depends(get_db)):
+    email_lower = request.email.lower().strip()
+    user = db.query(User).filter(User.email == email_lower).first()
+    
+    if not user or user.reset_code != request.code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset code.")
+    
+    if not user.reset_code_expires or datetime.utcnow() > user.reset_code_expires:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset code.")
+        
+    return {"message": "Code verified successfully."}
+
+@router.post("/reset-password")
+def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    email_lower = request.email.lower().strip()
+    user = db.query(User).filter(User.email == email_lower).first()
+    
+    if not user or user.reset_code != request.code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset code.")
+        
+    if not user.reset_code_expires or datetime.utcnow() > user.reset_code_expires:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset code.")
+        
+    # Reset password
+    user.password_hash = hash_password(request.new_password)
+    user.reset_code = None
+    user.reset_code_expires = None
+    db.commit()
+    
+    # Audit log
+    audit = AuditLog(
+        user_id=user.id,
+        action="reset_password",
+        entity_name="users",
+        entity_id=user.id,
+        details=f"User reset password",
+        timestamp=datetime.utcnow()
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"message": "Password reset successfully. You can now log in."}
+

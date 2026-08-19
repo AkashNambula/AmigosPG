@@ -4,8 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import API, { getBackendBaseURL } from '../services/api';
 import { 
   Home, CreditCard, AlertCircle, Bell, ArrowRight, 
-  Activity, DollarSign, Users, Utensils, Filter, 
-  SlidersHorizontal, ChevronDown, ChevronUp, RefreshCw 
+  Activity, DollarSign, Users, Utensils 
 } from 'lucide-react';
 import Toast from '../components/Toast';
 
@@ -23,11 +22,6 @@ export default function DashboardHome() {
   const [stats, setStats] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // Filter States
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [filterSharing, setFilterSharing] = useState([]);
-  const [filterFloor, setFilterFloor] = useState([]);
-  const [sortByPrice, setSortByPrice] = useState('');
 
   const fetchDashboardData = async () => {
     try {
@@ -57,28 +51,6 @@ export default function DashboardHome() {
     fetchDashboardData();
   }, []);
 
-  const handleSharingToggle = (type) => {
-    setFilterSharing(prev => 
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
-  };
-
-  const handleFloorToggle = (floorNum) => {
-    setFilterFloor(prev => 
-      prev.includes(floorNum) ? prev.filter(f => f !== floorNum) : [...prev, floorNum]
-    );
-  };
-
-  const clearAllFilters = () => {
-    setFilterSharing([]);
-    setFilterFloor([]);
-    setSortByPrice('');
-  };
-
-  const getFloorLabel = (floor) => {
-    const suffixes = { 1: 'st', 2: 'nd', 3: 'rd' };
-    return `${floor}${suffixes[floor] || 'th'} Floor`;
-  };
 
   if (loading) {
     return (
@@ -98,26 +70,6 @@ export default function DashboardHome() {
   const openComplaintsCount = complaints.filter(c => c.status !== 'RESOLVED' && c.status !== 'REJECTED').length;
   const latestNotification = notifications.length > 0 ? notifications[0] : null;
 
-  // Filter & Sort Rooms
-  const filteredRooms = rooms.filter(room => {
-    if (filterSharing.length > 0 && !filterSharing.includes(room.sharing_type)) {
-      return false;
-    }
-    if (filterFloor.length > 0 && !filterFloor.includes(room.floor)) {
-      return false;
-    }
-    return true;
-  });
-
-  const sortedRooms = [...filteredRooms].sort((a, b) => {
-    if (sortByPrice === 'low-to-high') {
-      return a.monthly_price - b.monthly_price;
-    }
-    if (sortByPrice === 'high-to-low') {
-      return b.monthly_price - a.monthly_price;
-    }
-    return 0;
-  });
 
   return (
     <div className="space-y-8">
@@ -349,236 +301,7 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* 2. AVAILABLE ROOMS CATALOG WITH FILTER SECTION */}
-      <div className="bg-white p-6 rounded border border-gray-200 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wider">PG Room Search & Filters</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Filter by sharing type, floor level, or price catalog.</p>
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <button
-              onClick={() => setShowFilterPanel(!showFilterPanel)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 border border-gray-300 rounded hover:border-black text-xs font-bold uppercase transition-colors bg-white select-none w-full md:w-auto"
-            >
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span>Filter</span>
-              {showFilterPanel ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
-            </button>
-            <button
-              onClick={fetchDashboardData}
-              className="p-2 border border-gray-300 rounded hover:border-black text-gray-500 hover:text-black transition-colors bg-white"
-              title="Refresh Availability"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
 
-        {/* Filter Panel Dropdown */}
-        {showFilterPanel && (
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-            {/* Sharing Filter */}
-            <div className="space-y-2">
-              <span className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Sharing Configurations</span>
-              <div className="space-y-1.5 pt-1">
-                {['2 Sharing', '3 Sharing', '4 Sharing', '5 Sharing'].map(type => (
-                  <label key={type} className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-black cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filterSharing.includes(type)}
-                      onChange={() => handleSharingToggle(type)}
-                      className="rounded text-black border-gray-300 focus:ring-black h-3.5 w-3.5"
-                    />
-                    <span>{type}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Floor Filter */}
-            <div className="space-y-2">
-              <span className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Floors</span>
-              <div className="space-y-1.5 pt-1">
-                {[1, 2, 3, 4, 5].map(floor => (
-                  <label key={floor} className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-black cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filterFloor.includes(floor)}
-                      onChange={() => handleFloorToggle(floor)}
-                      className="rounded text-black border-gray-300 focus:ring-black h-3.5 w-3.5"
-                    />
-                    <span>{getFloorLabel(floor)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Price Sort Filter */}
-            <div className="space-y-2">
-              <span className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Sort by Price</span>
-              <div className="space-y-1.5 pt-1">
-                <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-black cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sortByPrice"
-                    checked={sortByPrice === 'low-to-high'}
-                    onChange={() => setSortByPrice('low-to-high')}
-                    className="text-black border-gray-300 focus:ring-black h-3.5 w-3.5"
-                  />
-                  <span>Low to High</span>
-                </label>
-                <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-black cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sortByPrice"
-                    checked={sortByPrice === 'high-to-low'}
-                    onChange={() => setSortByPrice('high-to-low')}
-                    className="text-black border-gray-300 focus:ring-black h-3.5 w-3.5"
-                  />
-                  <span>High to Low</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="md:col-span-3 border-t border-gray-200 pt-3 flex justify-between items-center text-xs">
-              <span className="text-gray-500 font-medium">
-                Active filters: {filterSharing.length + filterFloor.length + (sortByPrice ? 1 : 0)}
-              </span>
-              <button
-                onClick={clearAllFilters}
-                className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-700 hover:underline"
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Filter Result Summary Header */}
-        <div className="flex justify-between items-center text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50 p-3 rounded border border-gray-150">
-          <span>
-            {sortedRooms.length === 0 
-              ? 'No rooms match your selected filters.' 
-              : `Showing ${sortedRooms.length} available rooms`
-            }
-          </span>
-          {(filterSharing.length > 0 || filterFloor.length > 0 || sortByPrice) && (
-            <button
-              onClick={clearAllFilters}
-              className="text-[10px] text-red-500 hover:text-red-700 normal-case font-bold hover:underline"
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
-
-        {/* Room Catalog Grid */}
-        {sortedRooms.length === 0 ? (
-          <div className="text-center p-12 bg-gray-50 rounded border border-gray-150 text-sm text-gray-500 space-y-2">
-            <Home className="w-12 h-12 stroke-1 mx-auto text-gray-300" />
-            <p className="font-bold text-gray-700">No rooms matched your criteria.</p>
-            <p className="text-xs text-gray-400">Try modifying or clearing your filters above.</p>
-            <button
-              onClick={clearAllFilters}
-              className="mt-2 px-4 py-2 border border-gray-300 rounded hover:border-black bg-white font-bold text-xs uppercase transition-colors"
-            >
-              Clear Filters
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sortedRooms.map(room => {
-              const isFull = room.available_beds === 0 || room.availability_status === 'full';
-              return (
-                <div 
-                  key={room.id} 
-                  className={`bg-white rounded border border-gray-250 shadow-sm flex flex-col justify-between overflow-hidden transition-all ${
-                    isFull ? 'opacity-85 border-gray-200' : 'hover:shadow-md hover:border-black'
-                  }`}
-                >
-                  <div className="p-5 space-y-4">
-                    {/* Room Header */}
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-lg font-bold text-gray-900">Room {room.room_number}</h4>
-                        <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                          {getFloorLabel(room.floor)}
-                        </span>
-                      </div>
-                      <span className={`px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase rounded border ${
-                        isFull 
-                          ? 'bg-red-50 text-red-600 border-red-100' 
-                          : 'bg-green-50 text-green-700 border-green-200'
-                      }`}>
-                        {isFull ? 'FULL' : 'AVAILABLE'}
-                      </span>
-                    </div>
-
-                    {/* Image block */}
-                    <div className="h-32 bg-gray-50 border border-gray-100 rounded overflow-hidden flex items-center justify-center relative">
-                      {room.images && room.images.length > 0 ? (
-                        <img 
-                          src={`${backendBase}${room.images[0].image_path}`} 
-                          alt={`Room ${room.room_number}`} 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="text-center text-gray-400 space-y-1">
-                          <Home className="w-8 h-8 mx-auto stroke-1 text-gray-300" />
-                          <span className="text-[10px] uppercase font-bold tracking-wider">No Image Uploaded</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Specs Details */}
-                    <div className="grid grid-cols-2 gap-3 text-xs border-t border-b border-gray-100 py-3">
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Sharing Type</span>
-                        <span className="font-semibold text-gray-800">{room.sharing_type}</span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Monthly Price</span>
-                        <span className="font-bold text-gray-900">₹{room.monthly_price?.toLocaleString()}</span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Available Beds</span>
-                        <span className={`font-semibold ${isFull ? 'text-red-500' : 'text-green-600'}`}>
-                          {room.available_beds} / {room.total_capacity} Beds
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Occupancy</span>
-                        <span className="font-semibold text-gray-800">{room.occupied_beds} Occupied</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions footer */}
-                  <div className="px-5 pb-5 pt-1">
-                    {isFull ? (
-                      <button
-                        disabled
-                        className="w-full py-2 bg-gray-150 border border-gray-200 rounded text-gray-400 text-xs font-bold uppercase cursor-not-allowed text-center"
-                      >
-                        No Beds Available
-                      </button>
-                    ) : (
-                      <Link
-                        to={`/dashboard/register-room/${room.id}`}
-                        className="block w-full py-2 bg-black hover:bg-gray-900 text-white rounded text-xs font-bold uppercase tracking-wider text-center transition-colors"
-                      >
-                        View Details
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {toast && (
         <Toast

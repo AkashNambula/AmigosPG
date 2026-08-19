@@ -8,6 +8,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.room import Room, RoomImage, RoomFacility
+from app.models.user import User  # <-- ADD THIS LINE
 from app.models.audit import AuditLog
 from app.schemas.room import RoomOut, RoomCreate, RoomUpdate
 from app.dependencies.auth import get_current_active_user, get_current_admin

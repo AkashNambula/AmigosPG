@@ -8,6 +8,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.booking import Booking, BookingDocument
+from app.models.bill import Bill
 from app.models.room import Room
 from app.models.notification import Notification
 from app.models.audit import AuditLog
@@ -255,9 +256,30 @@ def update_booking_status(
         if room.available_beds == 0:
             room.availability_status = "full"
             
+
         booking.status = "APPROVED"
         
+        # Auto-generate a bill if it doesn't already exist
+        existing_bill = db.query(Bill).filter(Bill.booking_id == booking.id).first()
+        if not existing_bill:
+            rent_amount = room.monthly_price
+            other_amount = room.security_deposit
+            total_amount = rent_amount + other_amount
+            
+            new_bill = Bill(
+                user_id=booking.user_id,
+                booking_id=booking.id,
+                room_id=room.id,
+                rent_amount=rent_amount,
+                other_amount=other_amount,
+                total_amount=total_amount,
+                due_date=booking.booking_start_date,
+                status="PENDING"
+            )
+            db.add(new_bill)
+        
         # Notify user
+
         notify = Notification(
             user_id=booking.user_id,
             title="Room Booking Approved",

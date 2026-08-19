@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
-import { 
+import {
   Menu, X, LayoutDashboard, Home, AlertCircle, CreditCard, 
-  Utensils, Users, Bell, User, LogOut, FileText, ClipboardList, ShieldAlert, Settings
+  Utensils, Users, Bell, User, LogOut, FileText, ClipboardList, ShieldAlert, Settings, BarChart
 } from 'lucide-react';
 
 export default function DashboardLayout() {
@@ -44,10 +44,11 @@ export default function DashboardLayout() {
   // Define navigation links by role
   const tenantLinks = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'Register Room', path: '/dashboard/register-room', icon: <Home className="w-5 h-5" /> },
+    { name: 'Search Room', path: '/dashboard/register-room', icon: <Home className="w-5 h-5" /> },
     { name: 'Raise a Complaint', path: '/dashboard/complaints', icon: <AlertCircle className="w-5 h-5" /> },
     { name: 'Pay Bills', path: '/dashboard/bills', icon: <CreditCard className="w-5 h-5" /> },
     { name: 'Food Menu', path: '/dashboard/food-menu', icon: <Utensils className="w-5 h-5" /> },
+    { name: 'Analytics', path: '/dashboard/analytics', icon: <BarChart className="w-5 h-5" /> },
     { name: 'Problems With Persons', path: '/dashboard/problems', icon: <ShieldAlert className="w-5 h-5" /> },
     { name: 'Notifications', path: '/dashboard/notifications', icon: <Bell className="w-5 h-5" />, badge: true },
     { name: 'Profile', path: '/dashboard/profile', icon: <User className="w-5 h-5" /> },
@@ -61,6 +62,7 @@ export default function DashboardLayout() {
     { name: 'Complaints', path: '/admin/complaints', icon: <AlertCircle className="w-5 h-5" /> },
     { name: 'Bills & Payments', path: '/admin/bills', icon: <CreditCard className="w-5 h-5" /> },
     { name: 'Food Menu', path: '/admin/food-menu', icon: <Utensils className="w-5 h-5" /> },
+    { name: 'Analytics', path: '/admin/analytics', icon: <BarChart className="w-5 h-5" /> },
     { name: 'Problems With Persons', path: '/admin/problems', icon: <ShieldAlert className="w-5 h-5" /> },
     { name: 'Notifications', path: '/admin/notifications', icon: <Bell className="w-5 h-5" />, badge: true },
     { name: 'Reports & Logs', path: '/admin/reports', icon: <ClipboardList className="w-5 h-5" /> },
@@ -77,7 +79,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50 text-gray-900">
+    <div className="h-screen flex overflow-hidden bg-gray-50 text-gray-900">
       {/* Sidebar for Desktop */}
       <aside className="hidden lg:flex flex-col w-64 bg-black text-white shrink-0 border-r border-gray-800">
         <div className="p-6 border-b border-gray-800">

@@ -8,6 +8,8 @@ class Bill(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True)
     rent_amount = Column(Float, default=0.0)
     electricity_amount = Column(Float, default=0.0)
     food_amount = Column(Float, default=0.0)
@@ -20,6 +22,8 @@ class Bill(Base):
 
     # Relationships
     user = relationship("User", back_populates="bills")
+    booking = relationship("Booking")
+    room = relationship("Room")
     payments = relationship("Payment", back_populates="bill", cascade="all, delete-orphan")
 
 class Payment(Base):

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import API, { getBackendBaseURL } from '../services/api';
 import { Plus, Edit, Trash2, Home, Upload, Check, X, ShieldAlert } from 'lucide-react';
 import Toast from '../components/Toast';
@@ -13,6 +13,17 @@ export default function AdminRooms() {
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [roomId, setRoomId] = useState(null);
+  
+  const formRef = useRef(null);
+
+  useEffect(() => {
+    if (showForm && formRef.current) {
+      formRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  }, [showForm, roomId]);
   
   const [floor, setFloor] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
@@ -205,13 +216,13 @@ export default function AdminRooms() {
 
       {/* Add / Edit Form Modal/Panel */}
       {showForm && (
-        <div className="bg-white p-8 rounded border border-gray-200 shadow-sm space-y-6 animate-slide-in">
+        <div ref={formRef} className="bg-white p-8 rounded border border-gray-200 shadow-sm space-y-6 animate-slide-in">
           <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
             <h3 className="text-md font-bold uppercase">
               {isEditing ? `Edit Room Details (AMPG-${roomId})` : 'Configure New Bed Room'}
             </h3>
-            <button onClick={resetForm} className="text-xs text-gray-400 hover:text-black font-semibold hover:underline">
-              Cancel
+            <button onClick={resetForm} className="text-gray-400 hover:text-black" title="Cancel">
+              <X className="w-5 h-5" />
             </button>
           </div>
 

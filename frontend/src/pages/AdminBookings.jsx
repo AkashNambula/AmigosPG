@@ -38,6 +38,17 @@ export default function AdminBookings() {
     }
   }, [location.state, bookings]);
 
+  useEffect(() => {
+    if (activeBooking) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [activeBooking]);
+
   const handleStatusUpdate = async (id, status) => {
     if (!window.confirm(`Are you sure you want to ${status.toLowerCase()} this booking request?`)) return;
 
@@ -222,106 +233,183 @@ export default function AdminBookings() {
 
       {/* Booking Details Modal */}
       {activeBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-          <div className="bg-white rounded border border-gray-300 w-full max-w-2xl shadow-xl animate-slide-in">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm" 
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+          onClick={() => setActiveBooking(null)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-in"
+            style={{ width: 'min(850px, calc(100vw - 40px))', maxHeight: '85vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex-none px-6 py-5 border-b border-gray-200 flex justify-between items-center bg-white">
               <div>
-                <span className="text-xs text-gray-400 font-bold uppercase">Booking Request Details</span>
-                <h3 className="text-lg font-bold text-gray-900 mt-0.5">Reference ID: AMPG-{String(activeBooking.id).padStart(4, '0')}</h3>
+                <h2 className="text-[20px] font-bold text-gray-900 tracking-tight">Booking Request Details</h2>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="text-[13px] font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded uppercase tracking-wider">REF: AMPG-{String(activeBooking.id).padStart(4, '0')}</span>
+                  {getStatusBadge(activeBooking.status)}
+                </div>
               </div>
-              <button onClick={() => setActiveBooking(null)} className="text-gray-400 hover:text-black uppercase font-bold text-xs">
-                Close
+              <button onClick={() => setActiveBooking(null)} className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-full transition-colors" title="Close">
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[480px]">
-              {/* Personal Information */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-1">Resident Information</h4>
-                <div className="grid grid-cols-2 gap-4 text-xs text-gray-600">
-                  <div>Name: <span className="font-bold text-gray-900">{activeBooking.user?.first_name} {activeBooking.user?.last_name}</span></div>
-                  <div>Email: <span className="font-bold text-gray-900">{activeBooking.user?.email}</span></div>
-                  <div>Phone: <span className="font-bold text-gray-900">{activeBooking.user?.phone}</span></div>
-                  <div>Home Location: <span className="font-bold text-gray-900">{activeBooking.user?.city}, {activeBooking.user?.state}</span></div>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-10 bg-white">
+              {/* Resident Information */}
+              <section>
+                <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-3 mb-5">Resident Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Name</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{activeBooking.user?.first_name} {activeBooking.user?.last_name}</span>
+                  </div>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Email</span>
+                    <a href={`mailto:${activeBooking.user?.email}`} className="text-[15px] font-semibold text-blue-600 hover:underline break-all" style={{ overflowWrap: 'anywhere' }}>{activeBooking.user?.email}</a>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Phone</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{activeBooking.user?.phone}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Home Location</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{activeBooking.user?.city}, {activeBooking.user?.state}</span>
+                  </div>
                 </div>
-              </div>
+              </section>
 
-              {/* Room details */}
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-1">Requested Room Parameters</h4>
-                <div className="grid grid-cols-2 gap-4 text-xs text-gray-600">
-                  <div>Assigned Room: <span className="font-bold text-gray-900">Room {activeBooking.room?.room_number} ({activeBooking.room?.floor} Floor)</span></div>
-                  <div>Sharing configuration: <span className="font-bold text-gray-900">{activeBooking.room?.sharing_type}</span></div>
-                  <div>Start check-in date: <span className="font-bold text-gray-900">{new Date(activeBooking.booking_start_date).toLocaleDateString()}</span></div>
-                  <div>Duration: <span className="font-bold text-gray-900">{activeBooking.duration} {activeBooking.duration === 'Custom' && `(${activeBooking.custom_days} Days)`}</span></div>
-                  <div>Luggage Bags Count: <span className="font-bold text-gray-900">{activeBooking.luggage_bags_count} Bags</span></div>
-                  <div>Monthly rent value: <span className="font-bold text-gray-950">INR {activeBooking.room?.monthly_price?.toLocaleString()}</span></div>
-                  <div>Security Deposit due: <span className="font-bold text-gray-950">INR {activeBooking.room?.security_deposit?.toLocaleString()}</span></div>
+              {/* Room & Booking Details */}
+              <section>
+                <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-3 mb-5">Room & Booking Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 bg-gray-50 p-6 rounded-lg border border-gray-100">
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Assigned Room</span>
+                    <span className="text-[15px] font-semibold text-gray-900">Room {activeBooking.room?.room_number}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Floor</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{activeBooking.room?.floor}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Sharing</span>
+                    <span className="text-[15px] font-semibold text-gray-900 capitalize">{activeBooking.room?.sharing_type}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Duration</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{activeBooking.duration} {activeBooking.duration === 'Custom' && `(${activeBooking.custom_days} Days)`}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Monthly Rent</span>
+                    <span className="text-[15px] font-semibold text-gray-900">₹{activeBooking.room?.monthly_price?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Security Deposit</span>
+                    <span className="text-[15px] font-semibold text-gray-900">₹{activeBooking.room?.security_deposit?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Start Date</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{new Date(activeBooking.booking_start_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-gray-500 mb-1">Submitted</span>
+                    <span className="text-[15px] font-semibold text-gray-900">{new Date(activeBooking.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  </div>
                 </div>
-                {activeBooking.additional_notes && (
-                  <div className="p-3 bg-gray-50 rounded border border-gray-200 text-xs mt-1">
-                    <span className="font-semibold text-gray-500 uppercase block mb-1">Check-in Remarks:</span>
-                    <p className="text-gray-700 leading-normal">{activeBooking.additional_notes}</p>
+              </section>
+
+              {/* Additional Information */}
+              {(activeBooking.luggage_bags_count !== undefined || activeBooking.additional_notes) && (
+                <section>
+                  <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-3 mb-5">Additional Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                    {activeBooking.luggage_bags_count !== undefined && (
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-medium text-gray-500 mb-1">Luggage Bags Count</span>
+                        <span className="text-[15px] font-semibold text-gray-900">{activeBooking.luggage_bags_count}</span>
+                      </div>
+                    )}
+                    {activeBooking.additional_notes && (
+                      <div className="flex flex-col md:col-span-2">
+                        <span className="text-[13px] font-medium text-gray-500 mb-1">Check-in Remarks</span>
+                        <p className="text-[15px] font-semibold text-gray-900 bg-gray-50 p-4 border border-gray-100 rounded leading-relaxed">{activeBooking.additional_notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Documents & Receipts */}
+              <section>
+                <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-3 mb-5">Documents & Receipts</h3>
+                {activeBooking.documents && activeBooking.documents.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                    {activeBooking.documents.map(doc => (
+                      <div key={doc.id} className="p-4 bg-white border border-gray-200 shadow-sm rounded-lg flex justify-between items-center group hover:border-gray-300 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gray-100 text-gray-600 rounded">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-[14px] font-bold text-gray-900">{doc.document_type === 'aadhaar_id' ? 'Aadhaar Card' : 'Passport Photo'}</p>
+                            <p className="text-[12px] text-gray-500 truncate" title={doc.original_filename}>{doc.original_filename}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDownloadDocument(activeBooking.id, doc.id, doc.document_type, doc.original_filename)}
+                          className="p-2 text-gray-500 hover:text-black bg-gray-50 hover:bg-gray-100 rounded transition-colors"
+                          title="Download Document"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-gray-50 border border-gray-200 border-dashed rounded-lg text-center">
+                    <p className="text-[14px] text-gray-500">No documents available</p>
                   </div>
                 )}
-              </div>
+              </section>
+            </div>
 
-              {/* Secured Identity documents download */}
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-1">Verification Documents</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  {activeBooking.documents?.map(doc => (
-                    <div key={doc.id} className="p-3 bg-gray-50 border border-gray-200 rounded flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-gray-800 uppercase tracking-wider">{doc.document_type === 'aadhaar_id' ? 'Aadhaar Card' : 'Passport Photo'}</p>
-                        <p className="text-[10px] text-gray-400 truncate max-w-[150px] mt-0.5">{doc.original_filename}</p>
-                      </div>
-                      <button
-                        onClick={() => handleDownloadDocument(activeBooking.id, doc.id, doc.document_type, doc.original_filename)}
-                        className="p-2 bg-white border border-gray-300 rounded hover:border-black text-gray-600 hover:text-black transition-colors"
-                        title="Download Secured File"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Modal Footer / Actions */}
+            <div className="flex-none px-6 py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <button
+                onClick={() => setActiveBooking(null)}
+                className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-black font-semibold text-[14px] rounded transition-colors w-full sm:w-auto"
+              >
+                Close
+              </button>
 
-              {/* Terms and actions */}
-              <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-1.5 text-xs text-green-600 font-semibold uppercase">
-                  <Check className="w-4 h-4" />
-                  <span>Terms and Conditions Accepted</span>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleDownloadPDF(activeBooking.id, activeBooking.room?.room_number, activeBooking.user?.first_name, activeBooking.user?.last_name)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-xs font-bold rounded hover:border-black transition-all uppercase tracking-wider"
-                  >
-                    <FileDown className="w-4 h-4" /> Print Details
-                  </button>
-
-                  {activeBooking.status === 'PENDING' && (
-                    <>
-                      <button
-                        onClick={() => handleStatusUpdate(activeBooking.id, 'REJECTED')}
-                        disabled={submittingStatus}
-                        className="px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-bold rounded uppercase tracking-wider transition-colors"
-                      >
-                        Reject Request
-                      </button>
-                      <button
-                        onClick={() => handleStatusUpdate(activeBooking.id, 'APPROVED')}
-                        disabled={submittingStatus}
-                        className="px-4 py-2 bg-black hover:bg-gray-900 text-white text-xs font-bold rounded uppercase tracking-wider transition-colors"
-                      >
-                        Approve & Allocate
-                      </button>
-                    </>
-                  )}
-                </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                {activeBooking.status === 'PENDING' && (
+                  <>
+                    <button
+                      onClick={() => handleStatusUpdate(activeBooking.id, 'REJECTED')}
+                      disabled={submittingStatus}
+                      className="px-6 py-2.5 bg-white border border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 text-[14px] font-semibold rounded transition-colors disabled:opacity-50 w-full sm:w-auto"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => handleStatusUpdate(activeBooking.id, 'APPROVED')}
+                      disabled={submittingStatus}
+                      className="px-6 py-2.5 bg-black hover:bg-gray-900 text-white text-[14px] font-semibold rounded transition-colors disabled:opacity-50 w-full sm:w-auto"
+                    >
+                      Approve & Allocate
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => handleDownloadPDF(activeBooking.id, activeBooking.room?.room_number, activeBooking.user?.first_name, activeBooking.user?.last_name)}
+                  className="inline-flex justify-center items-center gap-2 px-6 py-2.5 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:text-black text-[14px] font-semibold rounded transition-colors w-full sm:w-auto"
+                >
+                  <FileDown className="w-4 h-4" /> Print
+                </button>
               </div>
             </div>
           </div>
