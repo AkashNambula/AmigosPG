@@ -7,6 +7,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     action = Column(String, nullable=False)
     entity_name = Column(String, nullable=False)
@@ -15,4 +16,5 @@ class AuditLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    tenant = relationship("Tenant", back_populates="audit_logs")
     user = relationship("User", back_populates="audit_logs")

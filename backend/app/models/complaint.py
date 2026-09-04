@@ -7,6 +7,7 @@ class Complaint(Base):
     __tablename__ = "complaints"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     category = Column(String, nullable=False)  # "Electricity", "Water", "Wi-Fi", "Cleaning", etc.
     subject = Column(String, nullable=False)
@@ -17,6 +18,7 @@ class Complaint(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    tenant = relationship("Tenant", back_populates="complaints")
     user = relationship("User", back_populates="complaints")
     updates = relationship("ComplaintUpdate", back_populates="complaint", cascade="all, delete-orphan")
 

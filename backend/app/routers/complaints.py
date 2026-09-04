@@ -10,9 +10,9 @@ from app.models.complaint import Complaint, ComplaintUpdate
 from app.models.notification import Notification
 from app.models.audit import AuditLog
 from app.schemas.complaint import ComplaintOut, ComplaintAdminUpdate
-from app.dependencies.auth import get_current_active_user, get_current_admin
+from app.dependencies.auth import get_current_active_user, get_current_admin, require_feature
 
-router = APIRouter(prefix="/complaints", tags=["Complaints"])
+router = APIRouter(prefix="/complaints", tags=["Complaints"], dependencies=[Depends(require_feature("complaints"))])
 
 # File validation
 ALLOWED_IMG_TYPES = ["image/jpeg", "image/png", "image/jpg"]
@@ -61,6 +61,7 @@ async def create_complaint(
         attachment_path = f"/uploads/complaints/{filename}"
 
     complaint = Complaint(
+        tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         category=category,
         subject=subject,
@@ -73,11 +74,15 @@ async def create_complaint(
     db.commit()
     db.refresh(complaint)
     
-    # Notify admin
+    # Notify admin in same tenant
     from app.models.user import User
-    admins = db.query(User).filter(User.role == "admin").all()
+    admin_query = db.query(User).filter(User.role == "admin")
+    if current_user.tenant_id:
+        admin_query = admin_query.filter(User.tenant_id == current_user.tenant_id)
+    admins = admin_query.all()
     for admin_user in admins:
          db.add(Notification(
+             tenant_id=current_user.tenant_id,
              user_id=admin_user.id,
              title="New Complaint Raised",
              message=f"{current_user.first_name} raised a {priority} priority complaint regarding {category}.",
@@ -98,7 +103,9 @@ def list_complaints(
     db: Session = Depends(get_db)
 ):
     query = db.query(Complaint)
-    
+    if current_user.tenant_id:
+        query = query.filter(Complaint.tenant_id == current_user.tenant_id)
+        
     if current_user.role == "tenant":
         query = query.filter(Complaint.user_id == current_user.id)
     else:

@@ -46,23 +46,41 @@ def get_dashboard_stats(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    total_rooms = db.query(Room).count()
+    room_q = db.query(Room)
+    booking_q = db.query(Booking)
+    user_q = db.query(User)
+    complaint_q = db.query(Complaint)
+    bill_q = db.query(Bill)
     
-    beds_stats = db.query(
+    if admin.tenant_id:
+        room_q = room_q.filter(Room.tenant_id == admin.tenant_id)
+        booking_q = booking_q.filter(Booking.tenant_id == admin.tenant_id)
+        user_q = user_q.filter(User.tenant_id == admin.tenant_id)
+        complaint_q = complaint_q.filter(Complaint.tenant_id == admin.tenant_id)
+        bill_q = bill_q.filter(Bill.tenant_id == admin.tenant_id)
+
+    total_rooms = room_q.count()
+    
+    beds_query = db.query(
         func.sum(Room.available_beds).label("available"),
         func.sum(Room.occupied_beds).label("occupied")
-    ).first()
+    )
+    if admin.tenant_id:
+        beds_query = beds_query.filter(Room.tenant_id == admin.tenant_id)
+    beds_stats = beds_query.first()
     
     available_beds = int(beds_stats.available or 0) if beds_stats else 0
     occupied_beds = int(beds_stats.occupied or 0) if beds_stats else 0
     
-    pending_bookings = db.query(Booking).filter(Booking.status == "PENDING").count()
-    total_residents = db.query(User).filter(User.role == "tenant", User.account_status == "active").count()
-    pending_complaints = db.query(Complaint).filter(Complaint.status.in_(["OPEN", "IN_PROGRESS"])).count()
-    pending_bills = db.query(Bill).filter(Bill.status == "PENDING").count()
+    pending_bookings = booking_q.filter(Booking.status == "PENDING").count()
+    total_residents = user_q.filter(User.role == "tenant", User.account_status == "active").count()
+    pending_complaints = complaint_q.filter(Complaint.status.in_(["OPEN", "IN_PROGRESS"])).count()
+    pending_bills = bill_q.filter(Bill.status == "PENDING").count()
     
-    # Calculate Monthly Revenue (sum of total_amount of bills that are PAID)
-    revenue_stats = db.query(func.sum(Bill.total_amount)).filter(Bill.status == "PAID").scalar()
+    rev_query = db.query(func.sum(Bill.total_amount)).filter(Bill.status == "PAID")
+    if admin.tenant_id:
+        rev_query = rev_query.filter(Bill.tenant_id == admin.tenant_id)
+    revenue_stats = rev_query.scalar()
     monthly_revenue = float(revenue_stats or 0.0)
     
     return {
@@ -84,6 +102,7 @@ def broadcast_announcement(
 ):
     # 1. Save announcement in db
     announcement = Announcement(
+        tenant_id=admin.tenant_id,
         title=ann_in.title,
         content=ann_in.content,
         created_at=datetime.utcnow()
@@ -92,10 +111,14 @@ def broadcast_announcement(
     db.commit()
     db.refresh(announcement)
     
-    # 2. Query all tenants and broadcast notification
-    tenants = db.query(User).filter(User.role == "tenant").all()
+    # 2. Query tenants in same PG and broadcast notification
+    tenant_users_q = db.query(User).filter(User.role == "tenant")
+    if admin.tenant_id:
+        tenant_users_q = tenant_users_q.filter(User.tenant_id == admin.tenant_id)
+    tenants = tenant_users_q.all()
     for tenant in tenants:
         db.add(Notification(
+            tenant_id=admin.tenant_id,
             user_id=tenant.id,
             title=f"Announcement: {ann_in.title}",
             message=ann_in.content,
@@ -107,6 +130,7 @@ def broadcast_announcement(
         
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="broadcast_announcement",
         entity_name="announcements",
@@ -119,12 +143,17 @@ def broadcast_announcement(
     db.commit()
     return announcement
 
-@router.get("/audit-logs", response_model=List[AuditLogOut])
+from app.dependencies.auth import get_current_admin, require_feature
+
+@router.get("/audit-logs", response_model=List[AuditLogOut], dependencies=[Depends(require_feature("reports"))])
 def get_audit_logs(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    return db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
+    query = db.query(AuditLog)
+    if admin.tenant_id:
+        query = query.filter(AuditLog.tenant_id == admin.tenant_id)
+    return query.order_by(AuditLog.timestamp.desc()).all()
 
 @router.get("/bookings/{booking_id}/download-pdf")
 def download_booking_pdf_admin(
@@ -132,7 +161,10 @@ def download_booking_pdf_admin(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    query = db.query(Booking).filter(Booking.id == booking_id)
+    if admin.tenant_id:
+        query = query.filter(Booking.tenant_id == admin.tenant_id)
+    booking = query.first()
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -151,7 +183,7 @@ def download_booking_pdf_admin(
         
     user_name = f"{booking.user.first_name}_{booking.user.last_name}"
     clean_user_name = "".join(c for c in user_name if c.isalnum() or c == "_")
-    filename = f"Amigos_PG_Booking_Form_Room_{booking.room.room_number}_{clean_user_name}.pdf"
+    filename = f"Booking_Form_Room_{booking.room.room_number}_{clean_user_name}.pdf"
     
     return StreamingResponse(
         pdf_buffer,

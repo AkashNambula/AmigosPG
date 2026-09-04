@@ -76,13 +76,15 @@ class UserBase(BaseModel):
     @classmethod
     def validate_phone(cls, v: str) -> str:
         trimmed = v.strip()
-        if not re.match(r"^[6-9]\d{9}$", trimmed):
+        if not re.match(r"^\d{10}$", trimmed):
             raise ValueError("Please enter a valid 10-digit mobile number.")
         return trimmed
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
     confirm_password: str
+    tenant_id: Optional[int] = None
+    tenant_slug: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_location_and_passwords(self):
@@ -110,11 +112,14 @@ class UserCreate(UserBase):
 class UserLogin(BaseModel):
     email: str
     password: str
+    tenant_slug: Optional[str] = None
+    login_type: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
+    tenant_id: Optional[int] = None
 
 class UserUpdate(BaseModel):
     first_name: Optional[str] = None
@@ -123,13 +128,78 @@ class UserUpdate(BaseModel):
     state: Optional[str] = None
     city: Optional[str] = None
 
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    state: Optional[str] = None
+    city: Optional[str] = None
+    new_password: Optional[str] = Field(None, min_length=6)
+    confirm_new_password: Optional[str] = None
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Name cannot be empty.")
+        if not re.match(r"^[A-Za-z\s]+$", trimmed):
+            raise ValueError("First name and Last name must contain only alphabetic letters and spaces.")
+        return trimmed
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_custom(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        trimmed = v.strip().lower()
+        if not trimmed:
+            raise ValueError("Email address is required.")
+        if " " in trimmed:
+            raise ValueError("Email address cannot contain spaces.")
+        if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", trimmed):
+            raise ValueError("Please enter a valid email address.")
+        return trimmed
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        trimmed = re.sub(r"\D", "", v.strip())
+        if not re.match(r"^[6-9]\d{9}$", trimmed):
+            raise ValueError("Please enter a valid 10-digit mobile number starting with 6-9.")
+        return trimmed
+
+    @model_validator(mode="after")
+    def validate_password_match(self):
+        if self.new_password:
+            if self.new_password != self.confirm_new_password:
+                raise ValueError("New password and confirm password do not match.")
+        return self
+
 class UserOut(UserBase):
     id: int
+    tenant_id: Optional[int] = None
     role: str
     account_status: str
     joining_date: datetime
     created_at: datetime
+    profile_image: Optional[str] = None
     room_number: Optional[str] = "N/A"
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def sanitize_output_phone(cls, v: str) -> str:
+        if not v:
+            return "N/A"
+        digits = re.sub(r"\D", "", str(v))
+        if len(digits) >= 10:
+            return digits[-10:]
+        return str(v)
 
     class Config:
         from_attributes = True

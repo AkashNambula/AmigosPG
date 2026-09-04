@@ -11,9 +11,10 @@ from app.models.bill import Bill, Payment, PaymentSettings
 from app.models.notification import Notification
 from app.models.audit import AuditLog
 from app.schemas.bill import BillOut, BillCreate, BillUpdate, PaymentCreate, PaymentOut, PaymentSettingsOut
-from app.dependencies.auth import get_current_active_user, get_current_admin
+from app.dependencies.auth import get_current_active_user, get_current_admin, require_feature
+from app.services.storage import storage_service
 
-router = APIRouter(prefix="/bills", tags=["Bills & Payments"])
+router = APIRouter(prefix="/bills", tags=["Bills & Payments"], dependencies=[Depends(require_feature("billing"))])
 
 @router.post("/", response_model=BillOut, status_code=status.HTTP_201_CREATED)
 def create_bill(
@@ -30,6 +31,7 @@ def create_bill(
     )
     
     new_bill = Bill(
+        tenant_id=admin.tenant_id,
         user_id=bill_in.user_id,
         rent_amount=bill_in.rent_amount,
         electricity_amount=bill_in.electricity_amount,
@@ -46,6 +48,7 @@ def create_bill(
     
     # Notify user
     notify = Notification(
+        tenant_id=admin.tenant_id,
         user_id=bill_in.user_id,
         title="New Bill Generated",
         message=f"A new bill of INR {total:,.2f} has been generated for you. Due date: {bill_in.due_date.strftime('%Y-%m-%d')}.",
@@ -58,6 +61,7 @@ def create_bill(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="create_bill",
         entity_name="bills",
@@ -77,6 +81,9 @@ def get_bills(
     db: Session = Depends(get_db)
 ):
     query = db.query(Bill)
+    if current_user.tenant_id:
+        query = query.filter(Bill.tenant_id == current_user.tenant_id)
+        
     if current_user.role == "tenant":
         query = query.filter(Bill.user_id == current_user.id)
     else:
@@ -88,10 +95,16 @@ def get_bills(
 # --- STATIC PAYMENT SETTINGS & PROOFS ENDPOINTS FIRST ---
 
 @router.get("/settings", response_model=PaymentSettingsOut)
-def get_payment_settings(db: Session = Depends(get_db)):
-    settings_record = db.query(PaymentSettings).first()
+def get_payment_settings(
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(PaymentSettings)
+    if current_user.tenant_id:
+        query = query.filter(PaymentSettings.tenant_id == current_user.tenant_id)
+    settings_record = query.first()
     if not settings_record:
-        settings_record = PaymentSettings(upi_id="amigospg@upi")
+        settings_record = PaymentSettings(tenant_id=current_user.tenant_id, upi_id="amigospg@upi")
         db.add(settings_record)
         db.commit()
         db.refresh(settings_record)
@@ -111,9 +124,12 @@ def update_payment_settings(
     if not parts[0] or not parts[1]:
         raise HTTPException(status_code=400, detail="Please enter a valid UPI ID.")
         
-    settings_record = db.query(PaymentSettings).first()
+    query = db.query(PaymentSettings)
+    if admin.tenant_id:
+        query = query.filter(PaymentSettings.tenant_id == admin.tenant_id)
+    settings_record = query.first()
     if not settings_record:
-        settings_record = PaymentSettings()
+        settings_record = PaymentSettings(tenant_id=admin.tenant_id)
         db.add(settings_record)
         
     settings_record.upi_id = upi_id
@@ -140,29 +156,33 @@ async def upload_qr_code(
     if mime_type not in allowed_mimes and file_ext not in allowed_exts:
         raise HTTPException(status_code=400, detail="Please upload a valid QR image under 5 MB.")
         
-    rooms_dir = os.path.join(settings.UPLOAD_DIR, "rooms")
-    os.makedirs(rooms_dir, exist_ok=True)
     filename = f"qr_code_{uuid.uuid4().hex}{file_ext}"
-    filepath = os.path.join(rooms_dir, filename)
-    with open(filepath, "wb") as f:
-        f.write(contents)
+    object_key = f"qr/{filename}"
+    storage_service.save_file(contents, object_key)
         
-    settings_record = db.query(PaymentSettings).first()
+    query = db.query(PaymentSettings)
+    if admin.tenant_id:
+        query = query.filter(PaymentSettings.tenant_id == admin.tenant_id)
+    settings_record = query.first()
     if not settings_record:
-        settings_record = PaymentSettings()
+        settings_record = PaymentSettings(tenant_id=admin.tenant_id)
         db.add(settings_record)
         
-    settings_record.qr_code_path = f"/uploads/rooms/{filename}"
+    settings_record.qr_code_path = f"/uploads/qr/{filename}"
     db.commit()
     db.refresh(settings_record)
     return settings_record
+
 
 @router.delete("/settings/qr", response_model=PaymentSettingsOut)
 def delete_qr_code(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    settings_record = db.query(PaymentSettings).first()
+    query = db.query(PaymentSettings)
+    if admin.tenant_id:
+        query = query.filter(PaymentSettings.tenant_id == admin.tenant_id)
+    settings_record = query.first()
     if settings_record:
         settings_record.qr_code_path = None
         db.commit()
@@ -174,7 +194,10 @@ def get_qr_code_file(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    settings_record = db.query(PaymentSettings).first()
+    query = db.query(PaymentSettings)
+    if current_user.tenant_id:
+        query = query.filter(PaymentSettings.tenant_id == current_user.tenant_id)
+    settings_record = query.first()
     if not settings_record or not settings_record.qr_code_path:
         raise HTTPException(status_code=404, detail="QR Code scanner image not found.")
         
@@ -196,12 +219,13 @@ def download_qr_code(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    settings_record = db.query(PaymentSettings).first()
+    query = db.query(PaymentSettings)
+    if current_user.tenant_id:
+        query = query.filter(PaymentSettings.tenant_id == current_user.tenant_id)
+    settings_record = query.first()
     if not settings_record or not settings_record.qr_code_path:
         raise HTTPException(status_code=404, detail="QR Code not found.")
         
-    # qr_code_path is something like "/uploads/rooms/qr_code_xxxx.png"
-    # Let's derive the actual physical path
     filename = settings_record.qr_code_path.split("/")[-1]
     physical_path = os.path.join(settings.UPLOAD_DIR, "rooms", filename)
     
@@ -535,23 +559,23 @@ async def submit_payment_proof(
     if file_ext not in [".jpg", ".jpeg", ".png", ".webp"]:
         raise HTTPException(status_code=400, detail="Please upload a valid payment screenshot under 5 MB.")
         
-    secure_docs_dir = os.path.join(settings.UPLOAD_DIR, "documents")
-    os.makedirs(secure_docs_dir, exist_ok=True)
     filename = f"payment_screenshot_{bill_id}_{uuid.uuid4().hex}{file_ext}"
-    filepath = os.path.join(secure_docs_dir, filename)
-    with open(filepath, "wb") as f:
-        f.write(screenshot_content)
+    object_key = f"payments/{filename}"
+    storage_service.save_file(screenshot_content, object_key)
+    screenshot_rel_path = f"/uploads/payments/{filename}"
         
     new_payment = Payment(
+        tenant_id=current_user.tenant_id,
         bill_id=bill_id,
         amount_paid=amount_paid,
         payment_method=payment_method,
         transaction_id=transaction_id,
         payment_date=p_date,
         status="PENDING",
-        screenshot_path=filepath,
+        screenshot_path=screenshot_rel_path,
         submitted_at=datetime.utcnow()
     )
+
     db.add(new_payment)
     db.commit()
     db.refresh(new_payment)

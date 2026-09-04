@@ -13,10 +13,10 @@ from app.models.room import Room
 from app.models.notification import Notification
 from app.models.audit import AuditLog
 from app.schemas.booking import BookingOut, BookingStatusUpdate
-from app.dependencies.auth import get_current_active_user, get_current_admin
+from app.dependencies.auth import get_current_active_user, get_current_admin, require_feature
 from app.utils.pdf import generate_booking_pdf
 
-router = APIRouter(prefix="/bookings", tags=["Bookings"])
+router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(require_feature("bookings"))])
 
 # File validations
 ALLOWED_DOC_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"]
@@ -89,24 +89,18 @@ async def create_booking(
             detail="Uploaded files must not exceed 5MB size limit."
         )
 
-    # 4. Save documents locally (inside a secure, non-static directory)
-    secure_docs_dir = os.path.join(settings.UPLOAD_DIR, "documents")
-    os.makedirs(secure_docs_dir, exist_ok=True)
-
+    # 4. Save documents via storage_service
     aadhaar_ext = os.path.splitext(aadhaar_id.filename)[1]
     photo_ext = os.path.splitext(user_photo.filename)[1]
     
     aadhaar_filename = f"aadhaar_{current_user.id}_{uuid.uuid4().hex}{aadhaar_ext}"
     photo_filename = f"photo_{current_user.id}_{uuid.uuid4().hex}{photo_ext}"
-    
-    aadhaar_path = os.path.join(secure_docs_dir, aadhaar_filename)
-    photo_path = os.path.join(secure_docs_dir, photo_filename)
 
-    with open(aadhaar_path, "wb") as f:
-        f.write(aadhaar_content)
-        
-    with open(photo_path, "wb") as f:
-        f.write(photo_content)
+    storage_service.save_file(aadhaar_content, f"documents/{aadhaar_filename}")
+    storage_service.save_file(photo_content, f"documents/{photo_filename}")
+
+    aadhaar_path = f"/uploads/documents/{aadhaar_filename}"
+    photo_path = f"/uploads/documents/{photo_filename}"
 
     # Parse date
     try:
@@ -119,6 +113,7 @@ async def create_booking(
 
     # 5. Create Booking record
     booking = Booking(
+        tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         room_id=room_id,
         booking_start_date=start_date,
@@ -140,6 +135,7 @@ async def create_booking(
     # 6. Create Notifications
     # For tenant
     tenant_notification = Notification(
+        tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         title="Booking Request Submitted",
         message=f"Your booking request for Room {room.room_number} has been submitted and is pending admin approval.",
@@ -150,11 +146,15 @@ async def create_booking(
     )
     db.add(tenant_notification)
     
-    # Notify admin (user with role admin)
+    # Notify admin (users with role admin in same tenant)
     from app.models.user import User
-    admins = db.query(User).filter(User.role == "admin").all()
+    admin_query = db.query(User).filter(User.role == "admin")
+    if current_user.tenant_id:
+        admin_query = admin_query.filter(User.tenant_id == current_user.tenant_id)
+    admins = admin_query.all()
     for admin_user in admins:
         admin_notification = Notification(
+            tenant_id=current_user.tenant_id,
             user_id=admin_user.id,
             title="New Booking Request Received",
             message=f"New room booking request from {current_user.first_name} {current_user.last_name} for Room {room.room_number}.",
@@ -177,11 +177,12 @@ def list_bookings(
     db: Session = Depends(get_db)
 ):
     query = db.query(Booking)
+    if current_user.tenant_id:
+        query = query.filter(Booking.tenant_id == current_user.tenant_id)
     
     if current_user.role == "tenant":
         query = query.filter(Booking.user_id == current_user.id)
     else:
-        # Admin can view all bookings
         if status_filter:
             query = query.filter(Booking.status == status_filter)
             
@@ -193,7 +194,10 @@ def get_booking(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    query = db.query(Booking).filter(Booking.id == booking_id)
+    if current_user.tenant_id:
+        query = query.filter(Booking.tenant_id == current_user.tenant_id)
+    booking = query.first()
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -222,7 +226,10 @@ def update_booking_status(
             detail="Invalid status. Allowed values: APPROVED, REJECTED."
         )
 
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    query = db.query(Booking).filter(Booking.id == booking_id)
+    if admin.tenant_id:
+        query = query.filter(Booking.tenant_id == admin.tenant_id)
+    booking = query.first()
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -267,6 +274,7 @@ def update_booking_status(
             total_amount = rent_amount + other_amount
             
             new_bill = Bill(
+                tenant_id=booking.tenant_id,
                 user_id=booking.user_id,
                 booking_id=booking.id,
                 room_id=room.id,
@@ -281,9 +289,10 @@ def update_booking_status(
         # Notify user
 
         notify = Notification(
+            tenant_id=booking.tenant_id,
             user_id=booking.user_id,
             title="Room Booking Approved",
-            message=f"Your booking request for Room {room.room_number} has been approved by Amigos Mens Luxury PG.",
+            message=f"Your booking request for Room {room.room_number} has been approved.",
             notification_type="booking",
             is_read=False,
             reference_id=booking.id,
@@ -299,9 +308,10 @@ def update_booking_status(
         
         # Notify user
         notify = Notification(
+            tenant_id=booking.tenant_id,
             user_id=booking.user_id,
             title="Room Booking Rejected",
-            message=f"Your booking request for Room {room.room_number} has been rejected.",
+            message=f"Your booking request for Room {room.room_number} was rejected by administrator.",
             notification_type="booking",
             is_read=False,
             reference_id=booking.id,
@@ -311,11 +321,12 @@ def update_booking_status(
 
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="update_booking_status",
         entity_name="bookings",
         entity_id=booking.id,
-        details=f"Admin {new_status} booking for Room {room.room_number} by resident id {booking.user_id}",
+        details=f"Admin set booking status to {new_status} for Room {room.room_number} by resident id {booking.user_id}",
         timestamp=datetime.utcnow()
     )
     db.add(audit)
@@ -358,9 +369,34 @@ def download_pdf(
 def download_secure_document(
     booking_id: int,
     document_id: int,
-    admin = Depends(get_current_admin),
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found."
+        )
+
+    # Permission check: Super Admin, Admin of same tenant, or Resident who owns the booking
+    if current_user.role == "super_admin":
+        pass
+    elif current_user.role == "admin":
+        if booking.tenant_id != current_user.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You do not have permission to view documents for another PG tenant."
+            )
+    elif current_user.role == "tenant":
+        if booking.user_id != current_user.id or booking.tenant_id != current_user.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You do not have permission to view these documents."
+            )
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+
     doc = db.query(BookingDocument).filter(
         BookingDocument.id == document_id,
         BookingDocument.booking_id == booking_id
@@ -372,24 +408,24 @@ def download_secure_document(
             detail="Document reference not found."
         )
         
-    if not os.path.exists(doc.file_path):
+    file_bytes = storage_service.get_file(doc.file_path)
+    if file_bytes is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Physical document file not found."
+            detail="Physical document file not found on storage."
         )
         
-    # Return file response securely with proper MIME type guess
     import mimetypes
     mime_type, _ = mimetypes.guess_type(doc.file_path)
     if not mime_type:
         mime_type = "application/octet-stream"
         
-    return FileResponse(
-        path=doc.file_path,
-        filename=doc.original_filename,
+    return Response(
+        content=file_bytes,
         media_type=mime_type,
         headers={
-            "Content-Disposition": f"attachment; filename={doc.original_filename}",
+            "Content-Disposition": f'attachment; filename="{doc.original_filename}"',
             "Access-Control-Expose-Headers": "Content-Disposition"
         }
     )
+

@@ -7,8 +7,9 @@ class Room(Base):
     __tablename__ = "rooms"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     floor = Column(Integer, nullable=False, index=True)
-    room_number = Column(String, unique=True, index=True, nullable=False)
+    room_number = Column(String, index=True, nullable=False)
     total_capacity = Column(Integer, nullable=False)
     available_beds = Column(Integer, nullable=False)
     occupied_beds = Column(Integer, default=0, nullable=False)
@@ -20,6 +21,7 @@ class Room(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    tenant = relationship("Tenant", back_populates="rooms")
     images = relationship("RoomImage", back_populates="room", cascade="all, delete-orphan")
     facilities = relationship("RoomFacility", back_populates="room", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="room", cascade="all, delete-orphan")

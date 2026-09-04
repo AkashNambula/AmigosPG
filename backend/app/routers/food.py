@@ -6,9 +6,9 @@ from app.core.database import get_db
 from app.models.food import FoodMenu
 from app.models.audit import AuditLog
 from app.schemas.food import FoodMenuOut, FoodMenuUpdate, FoodMenuCreate
-from app.dependencies.auth import get_current_active_user, get_current_admin
+from app.dependencies.auth import get_current_active_user, get_current_admin, require_feature
 
-router = APIRouter(prefix="/food-menu", tags=["Food Menu"])
+router = APIRouter(prefix="/food-menu", tags=["Food Menu"], dependencies=[Depends(require_feature("food_menu"))])
 
 DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -17,24 +17,28 @@ def get_food_menu(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Ensure all days exist in database (seed dynamically if missing)
-    for day in DAYS_OF_WEEK:
-        existing = db.query(FoodMenu).filter(FoodMenu.day_of_week == day).first()
-        if not existing:
-            default_menu = FoodMenu(
-                day_of_week=day,
-                breakfast="Not configured yet",
-                lunch="Not configured yet",
-                snacks="Not configured yet",
-                dinner="Not configured yet"
-            )
-            db.add(default_menu)
-            db.commit()
+    tenant_id = current_user.tenant_id
+    # Ensure all days exist in database for this tenant (seed dynamically if missing)
+    if tenant_id:
+        for day in DAYS_OF_WEEK:
+            existing = db.query(FoodMenu).filter(FoodMenu.tenant_id == tenant_id, FoodMenu.day_of_week == day).first()
+            if not existing:
+                default_menu = FoodMenu(
+                    tenant_id=tenant_id,
+                    day_of_week=day,
+                    breakfast="Not configured yet",
+                    lunch="Not configured yet",
+                    snacks="Not configured yet",
+                    dinner="Not configured yet"
+                )
+                db.add(default_menu)
+                db.commit()
             
-    return db.query(FoodMenu).order_by(
-        # Custom ordering to start with Monday
-        FoodMenu.id
-    ).all()
+    query = db.query(FoodMenu)
+    if tenant_id:
+        query = query.filter(FoodMenu.tenant_id == tenant_id)
+        
+    return query.order_by(FoodMenu.id).all()
 
 @router.put("/{day_name}", response_model=FoodMenuOut)
 def update_food_menu(
@@ -43,7 +47,6 @@ def update_food_menu(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    # Normalize day name
     normalized_day = day_name.strip().capitalize()
     if normalized_day not in DAYS_OF_WEEK:
         raise HTTPException(
@@ -51,9 +54,13 @@ def update_food_menu(
             detail=f"Invalid day name. Allowed: {', '.join(DAYS_OF_WEEK)}."
         )
         
-    menu = db.query(FoodMenu).filter(FoodMenu.day_of_week == normalized_day).first()
+    query = db.query(FoodMenu).filter(FoodMenu.day_of_week == normalized_day)
+    if admin.tenant_id:
+        query = query.filter(FoodMenu.tenant_id == admin.tenant_id)
+    menu = query.first()
+    
     if not menu:
-        menu = FoodMenu(day_of_week=normalized_day)
+        menu = FoodMenu(tenant_id=admin.tenant_id, day_of_week=normalized_day)
         db.add(menu)
         
     menu.breakfast = menu_update.breakfast
@@ -66,6 +73,7 @@ def update_food_menu(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="update_food_menu",
         entity_name="food_menus",

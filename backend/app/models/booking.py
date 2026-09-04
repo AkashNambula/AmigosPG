@@ -7,6 +7,7 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
     booking_start_date = Column(DateTime, nullable=False)
@@ -19,6 +20,7 @@ class Booking(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    tenant = relationship("Tenant", back_populates="bookings")
     user = relationship("User", back_populates="bookings")
     room = relationship("Room", back_populates="bookings")
     documents = relationship("BookingDocument", back_populates="booking", cascade="all, delete-orphan")

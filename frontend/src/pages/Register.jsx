@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Building2, AlertTriangle, HelpCircle } from 'lucide-react';
 import Toast from '../components/Toast';
+import API from '../services/api';
 
 const INDIAN_STATES_CITIES = {
   "Andhra Pradesh": ["Anantapur", "Chittoor", "Eluru", "Guntur", "Kakinada", "Kurnool", "Nellore", "Ongole", "Rajahmundry", "Srikakulam", "Tadepalligudem", "Tirupati", "Vijayawada", "Visakhapatnam", "Vizianagaram"],
@@ -44,6 +45,13 @@ const INDIAN_STATES_CITIES = {
 };
 
 export default function Register() {
+  const { tenantSlug } = useParams();
+  const effectiveSlug = tenantSlug || 'amigospg';
+
+  const [tenantInfo, setTenantInfo] = useState(null);
+  const [tenantLoading, setTenantLoading] = useState(true);
+  const [tenantError, setTenantError] = useState(null);
+
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -53,11 +61,30 @@ export default function Register() {
     city: '',
     password: '',
     confirm_password: '',
+    tenant_slug: effectiveSlug
   });
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Fetch active tenant branding on mount
+  useEffect(() => {
+    setTenantLoading(true);
+    setTenantError(null);
+
+    API.get(`/public/tenants/${effectiveSlug}`)
+      .then((res) => {
+        setTenantInfo(res.data);
+        setFormData(prev => ({ ...prev, tenant_slug: res.data.slug }));
+      })
+      .catch((err) => {
+        setTenantError(err.friendlyMessage || 'PG Tenant property not found.');
+      })
+      .finally(() => {
+        setTenantLoading(false);
+      });
+  }, [effectiveSlug]);
 
   // Autocomplete states
   const [stateSuggestions, setStateSuggestions] = useState([]);
@@ -297,9 +324,15 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (tenantInfo && !tenantInfo.is_active) {
+      setToast({ type: 'error', message: 'This PG property is currently inactive. Registration disabled.' });
+      return;
+    }
+
     // Trigger validation across all fields
     let isValid = true;
-    Object.keys(formData).forEach((field) => {
+    const requiredFields = ['first_name', 'last_name', 'email', 'phone', 'state', 'city', 'password', 'confirm_password'];
+    requiredFields.forEach((field) => {
       const fieldValid = validateField(field, formData[field]);
       if (!fieldValid) isValid = false;
     });
@@ -311,10 +344,10 @@ export default function Register() {
 
     setLoading(true);
     try {
-      await register(formData);
-      setToast({ type: 'success', message: 'Account created successfully. Please sign in.' });
+      await register({ ...formData, tenant_slug: effectiveSlug });
+      setToast({ type: 'success', message: 'Account created successfully! Redirecting to sign in...' });
       setTimeout(() => {
-        navigate('/login');
+        navigate(`/login/${effectiveSlug}`);
       }, 1500);
     } catch (err) {
       setToast({ type: 'error', message: err || 'Registration failed. Please try again.' });
@@ -323,18 +356,73 @@ export default function Register() {
     }
   };
 
+  if (tenantLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+      </div>
+    );
+  }
+
+  if (tenantError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full text-center bg-white p-8 rounded shadow-md border border-gray-200">
+          <HelpCircle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">PG Property Not Found</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            The requested PG tenant property URL does not exist or has been removed.
+          </p>
+          <Link
+            to="/register/amigospg"
+            className="inline-block px-4 py-2 bg-black text-white rounded font-medium text-sm hover:bg-gray-800 transition-colors"
+          >
+            Go to AMIGOS PG Registration
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const logoSrc = tenantInfo?.logo_url ? `http://localhost:8000${tenantInfo.logo_url}` : null;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-lg w-full space-y-8 bg-white p-8 rounded shadow-md border border-gray-200">
+        
+        {/* Header Branding */}
         <div className="text-center">
+          {logoSrc ? (
+            <img
+              src={logoSrc}
+              alt={tenantInfo?.name}
+              className="h-20 w-auto mx-auto mb-4 object-contain"
+            />
+          ) : (
+            <div className="w-16 h-16 bg-gray-900 text-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow">
+              <Building2 className="h-8 w-8" />
+            </div>
+          )}
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 uppercase">
             CREATE ACCOUNT
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Join AMIGOS MENS LUXURY PG
+          <p className="mt-2 text-sm text-gray-600 font-medium">
+            Join {tenantInfo?.name || 'AMIGOS PG'}
           </p>
         </div>
 
+        {/* Inactive Tenant Banner */}
+        {tenantInfo && !tenantInfo.is_active && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 text-red-800">
+            <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold mb-1">PG Property Inactive</p>
+              <p>This PG tenant is currently inactive. Registration is disabled. Please contact administration.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Registration Form */}
         <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -346,12 +434,13 @@ export default function Register() {
                 name="first_name"
                 type="text"
                 required
+                disabled={tenantInfo && !tenantInfo.is_active}
                 value={formData.first_name}
                 onChange={handleInputChange}
                 onBlur={() => handleBlur('first_name')}
                 className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                   errors.first_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-                }`}
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
               />
               {errors.first_name && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.first_name}</p>}
             </div>
@@ -364,12 +453,13 @@ export default function Register() {
                 name="last_name"
                 type="text"
                 required
+                disabled={tenantInfo && !tenantInfo.is_active}
                 value={formData.last_name}
                 onChange={handleInputChange}
                 onBlur={() => handleBlur('last_name')}
                 className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                   errors.last_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-                }`}
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
               />
               {errors.last_name && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.last_name}</p>}
             </div>
@@ -384,12 +474,13 @@ export default function Register() {
               name="email"
               type="text"
               required
+              disabled={tenantInfo && !tenantInfo.is_active}
               value={formData.email}
               onChange={handleInputChange}
               onBlur={() => handleBlur('email')}
               className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                 errors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-              }`}
+              } disabled:bg-gray-100 disabled:cursor-not-allowed`}
               placeholder="name@example.com"
             />
             {errors.email && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.email}</p>}
@@ -405,12 +496,13 @@ export default function Register() {
               type="text"
               required
               maxLength={10}
+              disabled={tenantInfo && !tenantInfo.is_active}
               value={formData.phone}
               onChange={handleInputChange}
               onBlur={() => handleBlur('phone')}
               className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                 errors.phone ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-              }`}
+              } disabled:bg-gray-100 disabled:cursor-not-allowed`}
               placeholder="e.g. 9876543210"
             />
             {errors.phone && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.phone}</p>}
@@ -427,6 +519,7 @@ export default function Register() {
                 type="text"
                 required
                 autoComplete="off"
+                disabled={tenantInfo && !tenantInfo.is_active}
                 value={formData.state}
                 onChange={handleInputChange}
                 onFocus={handleStateFocus}
@@ -434,7 +527,7 @@ export default function Register() {
                 onKeyDown={handleStateKeyDown}
                 className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                   errors.state ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-                }`}
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
                 placeholder="e.g. Karnataka"
               />
               {errors.state && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.state}</p>}
@@ -471,6 +564,7 @@ export default function Register() {
                 type="text"
                 required
                 autoComplete="off"
+                disabled={tenantInfo && !tenantInfo.is_active}
                 value={formData.city}
                 onChange={handleInputChange}
                 onFocus={handleCityFocus}
@@ -478,7 +572,7 @@ export default function Register() {
                 onKeyDown={handleCityKeyDown}
                 className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                   errors.city ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-                }`}
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
                 placeholder="e.g. Bengaluru"
               />
               {errors.city && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.city}</p>}
@@ -516,12 +610,13 @@ export default function Register() {
                 name="password"
                 type="password"
                 required
+                disabled={tenantInfo && !tenantInfo.is_active}
                 value={formData.password}
                 onChange={handleInputChange}
                 onBlur={() => handleBlur('password')}
                 className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                   errors.password ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-                }`}
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
                 placeholder="Min 6 characters"
               />
               {errors.password && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.password}</p>}
@@ -535,12 +630,13 @@ export default function Register() {
                 name="confirm_password"
                 type="password"
                 required
+                disabled={tenantInfo && !tenantInfo.is_active}
                 value={formData.confirm_password}
                 onChange={handleInputChange}
                 onBlur={() => handleBlur('confirm_password')}
                 className={`mt-1 block w-full px-3 py-2 border rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm ${
                   errors.confirm_password ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
-                }`}
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
               />
               {errors.confirm_password && <p className="text-red-500 text-[10px] mt-1 font-semibold">{errors.confirm_password}</p>}
             </div>
@@ -549,7 +645,7 @@ export default function Register() {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (tenantInfo && !tenantInfo.is_active)}
               className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded text-white bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50 transition-colors"
             >
               <span className="absolute left-0 inset-y-0 flex items-center pl-3">
@@ -563,7 +659,7 @@ export default function Register() {
         <div className="text-center mt-4">
           <p className="text-sm text-gray-600">
             Already have an account?{' '}
-            <Link to="/login" className="font-medium text-black hover:underline">
+            <Link to={`/login/${effectiveSlug}`} className="font-medium text-black hover:underline">
               Sign In Here
             </Link>
           </p>

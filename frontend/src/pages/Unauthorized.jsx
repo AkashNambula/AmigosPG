@@ -1,9 +1,21 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { ShieldAlert } from 'lucide-react';
 
 export default function Unauthorized() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleGoHome = () => {
+    if (user?.role === 'super_admin') {
+      navigate('/super-admin');
+    } else if (user?.role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -23,10 +35,10 @@ export default function Unauthorized() {
 
         <div className="pt-2">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={handleGoHome}
             className="w-full py-2.5 bg-black hover:bg-gray-900 text-white font-semibold text-sm uppercase rounded transition-colors"
           >
-            Go to User Dashboard
+            Go to Dashboard
           </button>
         </div>
       </div>

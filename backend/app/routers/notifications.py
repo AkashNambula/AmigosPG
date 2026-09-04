@@ -4,9 +4,9 @@ from typing import List
 from app.core.database import get_db
 from app.models.notification import Notification
 from app.schemas.notification import NotificationOut
-from app.dependencies.auth import get_current_active_user
+from app.dependencies.auth import get_current_active_user, require_feature
 
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
+router = APIRouter(prefix="/notifications", tags=["Notifications"], dependencies=[Depends(require_feature("notifications"))])
 
 @router.get("/", response_model=List[NotificationOut])
 def get_my_notifications(

@@ -5,7 +5,7 @@ import { Utensils, Edit, Save, Calendar } from 'lucide-react';
 import Toast from '../components/Toast';
 
 export default function FoodMenu() {
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
   
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,9 +92,9 @@ export default function FoodMenu() {
             WEEKLY FOOD MENU
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {user.role === 'admin' 
+            {['admin', 'super_admin'].includes(user.role) 
               ? 'Edit the breakfast, lunch, tea snacks, and dinner schedules for each day.' 
-              : 'Weekly food scheduler at Amigos Mens Luxury PG.'}
+              : `Weekly food scheduler at ${tenant?.name || 'Amigos Mens Luxury PG'}.`}
           </p>
         </div>
       </div>
@@ -129,7 +129,7 @@ export default function FoodMenu() {
                 <span>{activeDay.toUpperCase()} SCHEDULE</span>
               </h3>
               
-              {user.role === 'admin' && !isEditing && (
+              {['admin', 'super_admin'].includes(user.role) && !isEditing && (
                 <button
                   onClick={() => setIsEditing(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-semibold rounded hover:border-black transition-colors"

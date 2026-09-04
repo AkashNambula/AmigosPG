@@ -11,9 +11,9 @@ from app.models.room import Room, RoomImage, RoomFacility
 from app.models.user import User  # <-- ADD THIS LINE
 from app.models.audit import AuditLog
 from app.schemas.room import RoomOut, RoomCreate, RoomUpdate
-from app.dependencies.auth import get_current_active_user, get_current_admin
+from app.dependencies.auth import get_current_active_user, get_current_admin, require_feature
 
-router = APIRouter(prefix="/rooms", tags=["Rooms"])
+router = APIRouter(prefix="/rooms", tags=["Rooms"], dependencies=[Depends(require_feature("rooms"))])
 
 # Validate file type and size helper
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
@@ -37,11 +37,12 @@ def get_rooms(
 ):
     query = db.query(Room)
     
+    if current_user.tenant_id:
+        query = query.filter(Room.tenant_id == current_user.tenant_id)
+        
     if current_user.role == "tenant":
-        # Tenants should only see available or full rooms, not maintenance rooms
         query = query.filter(Room.availability_status.in_(["available", "full", "VACANCY", "OCCUPIED"]))
     else:
-        # Admins can filter by availability_status (including maintenance)
         if availability_status:
             query = query.filter(Room.availability_status == availability_status)
             
@@ -70,10 +71,14 @@ def get_room_availability(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    query = db.query(Room)
+    if current_user.tenant_id:
+        query = query.filter(Room.tenant_id == current_user.tenant_id)
+        
     if current_user.role == "tenant":
-        all_rooms = db.query(Room).filter(Room.availability_status.in_(["available", "full", "VACANCY", "OCCUPIED"])).all()
+        all_rooms = query.filter(Room.availability_status.in_(["available", "full", "VACANCY", "OCCUPIED"])).all()
     else:
-        all_rooms = db.query(Room).all()
+        all_rooms = query.all()
         
     total_rooms = len(all_rooms)
     available_rooms = sum(1 for r in all_rooms if r.available_beds > 0 and r.availability_status in ["available", "VACANCY"])
@@ -98,7 +103,10 @@ def get_room_by_id(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    room = db.query(Room).filter(Room.id == room_id).first()
+    query = db.query(Room).filter(Room.id == room_id)
+    if current_user.tenant_id:
+        query = query.filter(Room.tenant_id == current_user.tenant_id)
+    room = query.first()
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -114,22 +122,25 @@ def get_room_by_id(
 @router.post("/", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
 def create_room(
     room_in: RoomCreate,
-    admin: User = Depends(get_current_admin), # We will import User locally or just use the dependent
+    admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    # Check duplicate room number
-    existing_room = db.query(Room).filter(Room.room_number == room_in.room_number).first()
-    if existing_room:
+    # Check duplicate room number within admin's tenant
+    existing_query = db.query(Room).filter(Room.room_number == room_in.room_number)
+    if admin.tenant_id:
+        existing_query = existing_query.filter(Room.tenant_id == admin.tenant_id)
+    if existing_query.first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Room {room_in.room_number} already exists."
         )
         
     new_room = Room(
+        tenant_id=admin.tenant_id,
         floor=room_in.floor,
         room_number=room_in.room_number,
         total_capacity=room_in.total_capacity,
-        available_beds=room_in.total_capacity,  # Initially all beds available
+        available_beds=room_in.total_capacity,
         occupied_beds=0,
         sharing_type=room_in.sharing_type,
         monthly_price=room_in.monthly_price,
@@ -151,6 +162,7 @@ def create_room(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="create_room",
         entity_name="rooms",
@@ -170,18 +182,22 @@ def update_room(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    room = db.query(Room).filter(Room.id == room_id).first()
+    query = db.query(Room).filter(Room.id == room_id)
+    if admin.tenant_id:
+        query = query.filter(Room.tenant_id == admin.tenant_id)
+    room = query.first()
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found."
         )
         
-    # Check room number uniqueness if updated
     update_data = room_update.dict(exclude_unset=True)
     if "room_number" in update_data and update_data["room_number"] != room.room_number:
-        dup = db.query(Room).filter(Room.room_number == update_data["room_number"]).first()
-        if dup:
+        dup_query = db.query(Room).filter(Room.room_number == update_data["room_number"])
+        if admin.tenant_id:
+            dup_query = dup_query.filter(Room.tenant_id == admin.tenant_id)
+        if dup_query.first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Room {update_data['room_number']} already exists."
@@ -220,6 +236,7 @@ def update_room(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="update_room",
         entity_name="rooms",
@@ -238,7 +255,10 @@ def delete_room(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    room = db.query(Room).filter(Room.id == room_id).first()
+    query = db.query(Room).filter(Room.id == room_id)
+    if admin.tenant_id:
+        query = query.filter(Room.tenant_id == admin.tenant_id)
+    room = query.first()
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -251,6 +271,7 @@ def delete_room(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="delete_room",
         entity_name="rooms",
@@ -270,7 +291,10 @@ async def upload_room_image(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    room = db.query(Room).filter(Room.id == room_id).first()
+    query = db.query(Room).filter(Room.id == room_id)
+    if admin.tenant_id:
+        query = query.filter(Room.tenant_id == admin.tenant_id)
+    room = query.first()
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -278,10 +302,6 @@ async def upload_room_image(
         )
         
     validate_image(file)
-    
-    # Setup directory
-    rooms_dir = os.path.join(settings.UPLOAD_DIR, "rooms")
-    os.makedirs(rooms_dir, exist_ok=True)
     
     # Read file size
     contents = await file.read()
@@ -291,15 +311,13 @@ async def upload_room_image(
             detail="File size exceeds maximum limit of 5MB."
         )
         
-    # Save file
+    # Save file via storage_service
     file_ext = os.path.splitext(file.filename)[1]
     filename = f"room_{room.room_number}_{uuid.uuid4().hex}{file_ext}"
-    file_path = os.path.join(rooms_dir, filename)
-    
-    with open(file_path, "wb") as f:
-        f.write(contents)
+    object_key = f"rooms/{filename}"
+    storage_service.save_file(contents, object_key)
         
-    # Store path in database (using relative URL style)
+    # Store path in database
     relative_path = f"/uploads/rooms/{filename}"
     room_img = RoomImage(room_id=room.id, image_path=relative_path)
     db.add(room_img)

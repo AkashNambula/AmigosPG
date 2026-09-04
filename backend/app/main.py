@@ -1,20 +1,25 @@
 import os
-from fastapi import FastAPI
+from typing import Optional
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.security import hash_password
+from app.dependencies.auth import get_current_active_user
 from app.models import User
-from app.routers import auth, users, rooms, bookings, complaints, bills, food, problems, notifications, admin
+from app.models.tenant import Tenant
+from app.schemas.tenant import TenantOut
+from app.routers import auth, users, rooms, bookings, complaints, bills, food, problems, notifications, admin, tenants, files
 
-# Create database tables dynamically if they don't exist
-Base.metadata.create_all(bind=engine)
+# In development mode, auto-create tables if running local SQLite (production uses Alembic migrations)
+if settings.ENVIRONMENT != "production" and "sqlite" in settings.DATABASE_URL:
+    Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Full-stack PG Management system API for AMIGOS MENS LUXURY PG",
-    version="1.0.0"
+    description="Multi-Tenant PG Management SaaS system API",
+    version="2.0.0"
 )
 
 # Configure CORS
@@ -63,133 +68,110 @@ def startup_event():
         os.path.join(settings.UPLOAD_DIR, "complaints"),
         os.path.join(settings.UPLOAD_DIR, "documents"),
         os.path.join(settings.UPLOAD_DIR, "problems"),
+        os.path.join(settings.UPLOAD_DIR, "logos"),
+        os.path.join(settings.UPLOAD_DIR, "profiles"),
     ]
     for directory in upload_dirs:
         os.makedirs(directory, exist_ok=True)
 
-    # 2. Seed default admin if not exists
     db = SessionLocal()
-    # Migration: lowercase all existing user emails to prevent case sensitivity issues
     try:
         from sqlalchemy import text
+        # Lowercase user emails
         db.execute(text("UPDATE users SET email = LOWER(email)"))
         db.commit()
-        print("Migration: Lowercased all existing user emails.")
-    except Exception as e:
-        db.rollback()
-        
-    # Migrations check: check and add reference_id and target_route to notifications table if missing
-    try:
-        from sqlalchemy import text
-        # SQLite check
-        columns = [c[1] for c in db.execute(text("PRAGMA table_info(notifications)")).fetchall()]
-        if columns:
-            if "reference_id" not in columns:
-                db.execute(text("ALTER TABLE notifications ADD COLUMN reference_id INTEGER"))
-                print("Migration: Added column reference_id to notifications.")
-            if "target_route" not in columns:
-                db.execute(text("ALTER TABLE notifications ADD COLUMN target_route VARCHAR"))
-                print("Migration: Added column target_route to notifications.")
+
+
+        # 2. Seed Default Tenant: AMIGOS MENS LUXURY PG
+        amigos_tenant = db.query(Tenant).filter(Tenant.name == "AMIGOS MENS LUXURY PG").first()
+        if not amigos_tenant:
+            amigos_tenant = Tenant(
+                name="AMIGOS MENS LUXURY PG",
+                description="Premium luxury paying guest accommodation for men",
+                phone="9876543210",
+                email="admin@amigospg.com",
+                city="Bengaluru",
+                state="Karnataka",
+                is_active=True
+            )
+            db.add(amigos_tenant)
             db.commit()
-    except Exception as e:
-        # Fallback for PostgreSQL or other database engines
+            db.refresh(amigos_tenant)
+            print(f"Migration: Created default tenant AMIGOS MENS LUXURY PG (ID: {amigos_tenant.id}).")
+
+        # Backfill tenant_id = amigos_tenant.id for all records with null tenant_id (except super_admin users)
+        for tbl in target_tables:
+            try:
+                if tbl == "users":
+                    db.execute(text(f"UPDATE {tbl} SET tenant_id = {amigos_tenant.id} WHERE tenant_id IS NULL AND role != 'super_admin'"))
+                else:
+                    db.execute(text(f"UPDATE {tbl} SET tenant_id = {amigos_tenant.id} WHERE tenant_id IS NULL"))
+                db.commit()
+            except Exception as e:
+                db.rollback()
+
+        # Ensure super_admin users always have tenant_id = None
         try:
-            db.execute(text("ALTER TABLE notifications ADD COLUMN reference_id INTEGER"))
+            db.execute(text("UPDATE users SET tenant_id = NULL WHERE role = 'super_admin'"))
             db.commit()
         except Exception:
             db.rollback()
-        try:
-            db.execute(text("ALTER TABLE notifications ADD COLUMN target_route VARCHAR"))
-            db.commit()
-        except Exception:
-            db.rollback()
 
-    # Migrations check: check and add new columns to payments table if missing
-    try:
-        payment_cols = [c[1] for c in db.execute(text("PRAGMA table_info(payments)")).fetchall()]
-        if payment_cols:
-            if "screenshot_path" not in payment_cols:
-                db.execute(text("ALTER TABLE payments ADD COLUMN screenshot_path VARCHAR"))
-            if "submitted_at" not in payment_cols:
-                db.execute(text("ALTER TABLE payments ADD COLUMN submitted_at TIMESTAMP"))
-            if "verified_at" not in payment_cols:
-                db.execute(text("ALTER TABLE payments ADD COLUMN verified_at TIMESTAMP"))
-            if "verified_by" not in payment_cols:
-                db.execute(text("ALTER TABLE payments ADD COLUMN verified_by INTEGER"))
-            if "admin_notes" not in payment_cols:
-                db.execute(text("ALTER TABLE payments ADD COLUMN admin_notes VARCHAR"))
-            db.commit()
-    except Exception as e:
-        # Fallback for Postgres
-        for col_def in [
-            ("screenshot_path", "VARCHAR"),
-            ("submitted_at", "TIMESTAMP"),
-            ("verified_at", "TIMESTAMP"),
-            ("verified_by", "INTEGER"),
-            ("admin_notes", "VARCHAR")
-        ]:
-            try:
-                db.execute(text(f"ALTER TABLE payments ADD COLUMN {col_def[0]} {col_def[1]}"))
-                db.commit()
-            except Exception:
-                db.rollback()
+        # Seed default tenant features for all tenants
+        from app.routers.tenants import seed_default_tenant_features
+        all_tenants = db.query(Tenant).all()
+        for t in all_tenants:
+            seed_default_tenant_features(db, t.id)
 
-    # Migrations check: check and add booking_id and room_id to bills table if missing
-    try:
-        bill_cols = [c[1] for c in db.execute(text("PRAGMA table_info(bills)")).fetchall()]
-        if bill_cols:
-            if "booking_id" not in bill_cols:
-                db.execute(text("ALTER TABLE bills ADD COLUMN booking_id INTEGER"))
-                print("Migration: Added column booking_id to bills.")
-            if "room_id" not in bill_cols:
-                db.execute(text("ALTER TABLE bills ADD COLUMN room_id INTEGER"))
-                print("Migration: Added column room_id to bills.")
+        # 3. Seed Super Admin account
+        super_admin = db.query(User).filter(User.role == "super_admin").first()
+        if not super_admin:
+            super_admin_user = User(
+                first_name="Super",
+                last_name="Admin",
+                email="superadmin@amigospg.com",
+                phone="9999999999",
+                state="Karnataka",
+                city="Bengaluru",
+                password_hash=hash_password("SuperAdmin123"),
+                role="super_admin",
+                account_status="active",
+                tenant_id=None
+            )
+            db.add(super_admin_user)
             db.commit()
-    except Exception as e:
-        # Fallback for Postgres
-        for col_def in [
-            ("booking_id", "INTEGER"),
-            ("room_id", "INTEGER")
-        ]:
-            try:
-                db.execute(text(f"ALTER TABLE bills ADD COLUMN {col_def[0]} {col_def[1]}"))
-                db.commit()
-            except Exception:
-                db.rollback()
-
-    # Seed default payment settings
-    try:
-        from app.models.bill import PaymentSettings
-        settings_record = db.query(PaymentSettings).first()
-        if not settings_record:
-            db.add(PaymentSettings(upi_id="amigospg@upi"))
+            print("Super Admin created successfully: superadmin@amigospg.com / SuperAdmin123")
+        else:
+            if super_admin.phone == "0000000000":
+                super_admin.phone = "9999999999"
+            if super_admin.tenant_id is not None:
+                super_admin.tenant_id = None
             db.commit()
-            print("Migration: Seeded default payment settings.")
-    except Exception as e:
-        db.rollback()
-        print(f"Error seeding payment settings: {e}")
 
-    try:
+        # 4. Seed default PG Admin account if not exists
         admin_email = settings.ADMIN_DEFAULT_EMAIL
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
-            hashed_pwd = hash_password(settings.ADMIN_DEFAULT_PASSWORD)
             default_admin = User(
+                tenant_id=amigos_tenant.id,
                 first_name="Amigos",
                 last_name="Owner",
                 email=admin_email,
                 phone=settings.ADMIN_DEFAULT_PHONE,
                 state="Karnataka",
                 city="Bengaluru",
-                password_hash=hashed_pwd,
+                password_hash=hash_password(settings.ADMIN_DEFAULT_PASSWORD),
                 role="admin",
                 account_status="active"
             )
             db.add(default_admin)
             db.commit()
             print(f"Default admin created successfully with email: {admin_email}")
+        elif admin.tenant_id is None:
+            admin.tenant_id = amigos_tenant.id
+            db.commit()
 
-        # 3. Seed exactly 30 rooms (Floors 1-5, Rooms X01-X06)
+        # 5. Seed rooms for default tenant
         from app.models.room import Room
         floors = {
             1: [101, 102, 103, 104, 105, 106],
@@ -200,9 +182,10 @@ def startup_event():
         }
         for floor_num, room_list in floors.items():
             for room_num in room_list:
-                existing_room = db.query(Room).filter(Room.room_number == str(room_num)).first()
+                existing_room = db.query(Room).filter(Room.tenant_id == amigos_tenant.id, Room.room_number == str(room_num)).first()
                 if not existing_room:
                     new_room = Room(
+                        tenant_id=amigos_tenant.id,
                         room_number=str(room_num),
                         floor=floor_num,
                         sharing_type="3 Sharing",
@@ -222,20 +205,26 @@ def startup_event():
                 else:
                     existing_room.floor = floor_num
         db.commit()
-        print("Successfully seeded all 30 rooms (101-506).")
     except Exception as e:
-        print(f"Error seeding default admin or rooms: {e}")
+        print(f"Startup event warning: {e}")
     finally:
         db.close()
 
 # Mount public upload directories statically
-# Note: uploads/documents and uploads/problems are NOT mounted, keeping them private!
 if os.path.exists(os.path.join(settings.UPLOAD_DIR, "rooms")):
     app.mount("/uploads/rooms", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "rooms")), name="rooms_static")
 if os.path.exists(os.path.join(settings.UPLOAD_DIR, "complaints")):
     app.mount("/uploads/complaints", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "complaints")), name="complaints_static")
+if os.path.exists(os.path.join(settings.UPLOAD_DIR, "logos")):
+    app.mount("/uploads/logos", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "logos")), name="logos_static")
+if os.path.exists(os.path.join(settings.UPLOAD_DIR, "profiles")):
+    app.mount("/uploads/profiles", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "profiles")), name="profiles_static")
 
 # Include Routers
+app.include_router(tenants.public_router, prefix=settings.API_V1_STR)
+app.include_router(tenants.router, prefix=settings.API_V1_STR)
+app.include_router(tenants.tenant_router, prefix=settings.API_V1_STR)
+app.include_router(tenants.super_admin_router, prefix=settings.API_V1_STR)
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(rooms.router, prefix=settings.API_V1_STR)
@@ -246,11 +235,13 @@ app.include_router(food.router, prefix=settings.API_V1_STR)
 app.include_router(problems.router, prefix=settings.API_V1_STR)
 app.include_router(notifications.router, prefix=settings.API_V1_STR)
 app.include_router(admin.router, prefix=settings.API_V1_STR)
+app.include_router(files.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to AMIGOS MENS LUXURY PG API server!"}
+    return {"message": "Welcome to Multi-Tenant PG Management SaaS API server!"}
 
 @app.get("/health")
 def read_health():
     return {"status": "healthy"}
+

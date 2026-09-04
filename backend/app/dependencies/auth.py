@@ -30,8 +30,12 @@ def get_current_user(token: str = Depends(get_token), db: Session = Depends(get_
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    email = decode_access_token(token)
-    if email is None:
+    payload = decode_access_token(token)
+    if payload is None or not isinstance(payload, dict):
+        raise credentials_exception
+        
+    email = payload.get("sub")
+    if not email:
         raise credentials_exception
         
     user = db.query(User).filter(User.email == email).first()
@@ -41,9 +45,6 @@ def get_current_user(token: str = Depends(get_token), db: Session = Depends(get_
     return user
 
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
-    # All registered users are tenant/admin. If inactive, raise exception.
-    # Note: Tenant registrations start as 'pending' but can log in and submit bookings, 
-    # but we can restrict specific actions if their account is deactivated/suspended.
     if current_user.account_status == "inactive":
          raise HTTPException(
              status_code=status.HTTP_403_FORBIDDEN,
@@ -51,8 +52,16 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
          )
     return current_user
 
+def get_current_super_admin(current_user: User = Depends(get_current_active_user)) -> User:
+    if current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: Super Admin privilege required."
+        )
+    return current_user
+
 def get_current_admin(current_user: User = Depends(get_current_active_user)) -> User:
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: Admin privilege required."
@@ -66,3 +75,27 @@ def get_current_tenant(current_user: User = Depends(get_current_active_user)) ->
             detail="Access forbidden: Tenant privilege required."
         )
     return current_user
+
+def require_feature(feature_key: str):
+    def dependency(
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+    ):
+        if current_user.role == "super_admin":
+            return True
+        if not current_user.tenant_id:
+            return True
+            
+        from app.models.tenant_feature import TenantFeature
+        feat = db.query(TenantFeature).filter(
+            TenantFeature.tenant_id == current_user.tenant_id,
+            TenantFeature.feature_key == feature_key
+        ).first()
+        
+        if feat and not feat.enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"The '{feature_key}' feature is not enabled for this PG tenant."
+            )
+        return True
+    return dependency

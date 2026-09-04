@@ -25,6 +25,7 @@ def update_profile(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=current_user.tenant_id,
         user_id=current_user.id,
         action="update_profile",
         entity_name="users",
@@ -46,6 +47,8 @@ def list_users(
     db: Session = Depends(get_db)
 ):
     query = db.query(User)
+    if admin.tenant_id:
+        query = query.filter(User.tenant_id == admin.tenant_id)
     
     if role:
         query = query.filter(User.role == role)
@@ -75,7 +78,10 @@ def update_user_status(
             detail="Invalid account status value."
         )
         
-    user = db.query(User).filter(User.id == user_id).first()
+    query = db.query(User).filter(User.id == user_id)
+    if admin.tenant_id:
+        query = query.filter(User.tenant_id == admin.tenant_id)
+    user = query.first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -88,6 +94,7 @@ def update_user_status(
     
     # Audit log
     audit = AuditLog(
+        tenant_id=admin.tenant_id,
         user_id=admin.id,
         action="update_user_status",
         entity_name="users",
