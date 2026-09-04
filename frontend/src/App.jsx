@@ -8,6 +8,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Unauthorized from './pages/Unauthorized';
 import DashboardHome from './pages/DashboardHome';
 import RegisterRoom from './pages/RegisterRoom';
@@ -18,6 +19,7 @@ import FoodMenu from './pages/FoodMenu';
 import ProblemsWithPersons from './pages/ProblemsWithPersons';
 import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
+import Analytics from './pages/Analytics';
 
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard';
@@ -83,6 +85,7 @@ export default function App() {
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* User/Tenant routes */}
@@ -104,6 +107,7 @@ export default function App() {
             <Route path="food-menu" element={<FoodMenu />} />
             <Route path="problems" element={<ProblemsWithPersons />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="analytics" element={<Analytics />} />
             <Route path="profile" element={<Profile />} />
           </Route>
 
@@ -127,6 +131,7 @@ export default function App() {
             <Route path="food-menu" element={<FoodMenu />} />
             <Route path="problems" element={<ProblemsWithPersons />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="analytics" element={<Analytics />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>

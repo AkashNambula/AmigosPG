@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API, { getBackendBaseURL } from '../services/api';
-import { ArrowLeft, Home, BadgeInfo, CheckCircle, FileText, Upload } from 'lucide-react';
+import { ArrowLeft, Home, BadgeInfo, CheckCircle, FileText, Upload, X } from 'lucide-react';
 import Toast from '../components/Toast';
 
 export default function RoomDetail() {
@@ -260,9 +260,10 @@ export default function RoomDetail() {
             </div>
             <button 
               onClick={() => setShowBookingForm(false)}
-              className="text-xs text-gray-500 hover:text-black font-semibold hover:underline"
+              className="text-gray-400 hover:text-black"
+              title="Cancel Form"
             >
-              Cancel Form
+              <X className="w-5 h-5" />
             </button>
           </div>
 

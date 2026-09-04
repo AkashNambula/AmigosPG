@@ -191,7 +191,40 @@ def get_qr_code_file(
         
     return FileResponse(path=filepath, media_type=mime_type)
 
+@router.get("/settings/qr/download")
+def download_qr_code(
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    settings_record = db.query(PaymentSettings).first()
+    if not settings_record or not settings_record.qr_code_path:
+        raise HTTPException(status_code=404, detail="QR Code not found.")
+        
+    # qr_code_path is something like "/uploads/rooms/qr_code_xxxx.png"
+    # Let's derive the actual physical path
+    filename = settings_record.qr_code_path.split("/")[-1]
+    physical_path = os.path.join(settings.UPLOAD_DIR, "rooms", filename)
+    
+    if not os.path.exists(physical_path):
+        raise HTTPException(status_code=404, detail="QR Code file not found on server.")
+        
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(physical_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+        
+    return FileResponse(
+        path=physical_path,
+        filename=filename,
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": f"inline; filename={filename}",
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+    )
+
 @router.get("/proofs/all", response_model=List[PaymentOut])
+
 def get_payment_proofs(
     admin = Depends(get_current_admin),
     db: Session = Depends(get_db)

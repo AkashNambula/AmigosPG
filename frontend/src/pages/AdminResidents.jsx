@@ -13,6 +13,11 @@ export default function AdminResidents() {
   const [role, setRole] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
+  // Applied states
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedRole, setAppliedRole] = useState('');
+  const [appliedStatus, setAppliedStatus] = useState('');
+
   const [updatingId, setUpdatingId] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
@@ -21,9 +26,9 @@ export default function AdminResidents() {
       setLoading(true);
       let query = '';
       const params = [];
-      if (role) params.push(`role=${role}`);
-      if (statusFilter) params.push(`status=${statusFilter}`);
-      if (search) params.push(`search=${search}`);
+      if (appliedRole) params.push(`role=${appliedRole}`);
+      if (appliedStatus) params.push(`status=${appliedStatus}`);
+      if (appliedSearch) params.push(`search=${appliedSearch}`);
       
       if (params.length > 0) {
         query = '?' + params.join('&');
@@ -39,13 +44,23 @@ export default function AdminResidents() {
   };
 
   useEffect(() => {
-    // Add debounce to search if needed, but fetch on filter change works immediately!
     fetchResidents();
-  }, [role, statusFilter]);
+  }, [appliedRole, appliedStatus, appliedSearch]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchResidents();
+  const handleApplyFilters = (e) => {
+    if (e) e.preventDefault();
+    setAppliedSearch(search);
+    setAppliedRole(role);
+    setAppliedStatus(statusFilter);
+  };
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setRole('');
+    setStatusFilter('');
+    setAppliedSearch('');
+    setAppliedRole('');
+    setAppliedStatus('');
   };
 
   const handleStatusChange = async (userId, newStatus) => {
@@ -102,42 +117,42 @@ export default function AdminResidents() {
         </p>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+      {/* Professional Filter Toolbar */}
+      <div className="bg-gray-50 p-4 rounded border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+        <div className="flex-1 w-full relative">
+          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Search</label>
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by first name, email, phone..."
-              className="pl-9 pr-3 py-2 w-full border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm"
+              onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters(e)}
+              placeholder="Name, email, phone..."
+              className="pl-9 pr-3 py-2 w-full border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
             />
           </div>
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-black text-white hover:bg-gray-900 text-sm font-semibold rounded transition-colors"
-          >
-            Search
-          </button>
-        </form>
+        </div>
 
-        <div className="flex gap-4">
+        <div className="flex-1 w-full">
+          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Role</label>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
           >
             <option value="">All Roles</option>
             <option value="tenant">Tenant</option>
             <option value="admin">Admin</option>
           </select>
+        </div>
 
+        <div className="flex-1 w-full">
+          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm bg-white"
           >
             <option value="">All Statuses</option>
             <option value="active">Active</option>
@@ -145,10 +160,25 @@ export default function AdminResidents() {
             <option value="inactive">Inactive</option>
           </select>
         </div>
+
+        <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+          <button
+            onClick={handleClearFilters}
+            className="flex-1 md:flex-none px-4 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 hover:text-black font-bold text-xs uppercase rounded transition-colors"
+          >
+            Clear
+          </button>
+          <button
+            onClick={handleApplyFilters}
+            className="flex-1 md:flex-none px-6 py-2 bg-black text-white hover:bg-gray-900 font-bold text-xs uppercase rounded transition-colors whitespace-nowrap"
+          >
+            Apply Filters
+          </button>
+        </div>
       </div>
 
       {/* Table grid */}
-      <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden mt-6">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h3 className="text-sm font-semibold uppercase text-gray-500 tracking-wider">Residents Roster</h3>
           <span className="text-xs text-gray-400">Total accounts: {residents.length}</span>

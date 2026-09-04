@@ -134,6 +134,29 @@ def startup_event():
             except Exception:
                 db.rollback()
 
+    # Migrations check: check and add booking_id and room_id to bills table if missing
+    try:
+        bill_cols = [c[1] for c in db.execute(text("PRAGMA table_info(bills)")).fetchall()]
+        if bill_cols:
+            if "booking_id" not in bill_cols:
+                db.execute(text("ALTER TABLE bills ADD COLUMN booking_id INTEGER"))
+                print("Migration: Added column booking_id to bills.")
+            if "room_id" not in bill_cols:
+                db.execute(text("ALTER TABLE bills ADD COLUMN room_id INTEGER"))
+                print("Migration: Added column room_id to bills.")
+            db.commit()
+    except Exception as e:
+        # Fallback for Postgres
+        for col_def in [
+            ("booking_id", "INTEGER"),
+            ("room_id", "INTEGER")
+        ]:
+            try:
+                db.execute(text(f"ALTER TABLE bills ADD COLUMN {col_def[0]} {col_def[1]}"))
+                db.commit()
+            except Exception:
+                db.rollback()
+
     # Seed default payment settings
     try:
         from app.models.bill import PaymentSettings

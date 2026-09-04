@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API, { getBackendBaseURL } from '../services/api';
-import { AlertCircle, Plus, FileText, CheckCircle2, MessageSquare, Upload } from 'lucide-react';
+import { AlertCircle, Plus, FileText, CheckCircle2, MessageSquare, Upload, X } from 'lucide-react';
 import Toast from '../components/Toast';
 
 export default function Complaints() {
@@ -200,8 +200,8 @@ export default function Complaints() {
         <div className="bg-white p-6 rounded border border-gray-200 shadow-sm space-y-6 animate-slide-in">
           <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
             <h3 className="text-md font-bold uppercase">Raise a New Complaint</h3>
-            <button onClick={() => setShowAddForm(false)} className="text-xs text-gray-400 hover:text-black font-semibold hover:underline">
-              Cancel
+            <button onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-black" title="Cancel">
+              <X className="w-5 h-5" />
             </button>
           </div>
 
@@ -354,9 +354,10 @@ export default function Complaints() {
                   setActiveComplaint(null);
                   setReplyMessage('');
                 }} 
-                className="text-gray-400 hover:text-black font-semibold text-xs uppercase"
+                className="text-gray-400 hover:text-black"
+                title="Close"
               >
-                Close
+                <X className="w-5 h-5" />
               </button>
             </div>
 

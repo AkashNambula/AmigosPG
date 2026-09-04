@@ -58,6 +58,8 @@ class PaymentSettingsUpdate(BaseModel):
 
 class BillBase(BaseModel):
     user_id: int
+    booking_id: Optional[int] = None
+    room_id: Optional[int] = None
     rent_amount: float = 0.0
     electricity_amount: float = 0.0
     food_amount: float = 0.0
@@ -80,6 +82,8 @@ class BillUpdate(BaseModel):
 class BillOut(BaseModel):
     id: int
     user_id: int
+    booking_id: Optional[int] = None
+    room_id: Optional[int] = None
     rent_amount: float
     electricity_amount: float
     food_amount: float

@@ -18,7 +18,8 @@ class User(Base):
     account_status = Column(String, default="pending")  # "active", "pending", "inactive"
     joining_date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    reset_code = Column(String, nullable=True)
+    reset_code_expires = Column(DateTime, nullable=True)
     # Relationships
     bookings = relationship("Booking", back_populates="user")
     complaints = relationship("Complaint", back_populates="user")
