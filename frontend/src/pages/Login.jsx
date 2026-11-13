@@ -3,7 +3,7 @@ import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogIn, Building2, AlertTriangle, HelpCircle } from 'lucide-react';
 import Toast from '../components/Toast';
-import API from '../services/api';
+import API, { getBackendBaseURL } from '../services/api';
 
 export default function Login({ isSuperAdmin: propIsSuperAdmin = false }) {
   const { tenantSlug } = useParams();
@@ -109,7 +109,7 @@ export default function Login({ isSuperAdmin: propIsSuperAdmin = false }) {
   }
 
   const effectiveSlug = tenantSlug || 'amigospg';
-  const logoSrc = tenantInfo?.logo_url ? `http://localhost:8000${tenantInfo.logo_url}` : null;
+  const logoSrc = tenantInfo?.logo_url ? `${getBackendBaseURL()}${tenantInfo.logo_url}` : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">

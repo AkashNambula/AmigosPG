@@ -4,7 +4,7 @@ import urllib.error
 import time
 import os
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = os.getenv("TEST_BASE_URL", "http://127.0.0.1:8001/api")
 
 def make_request(path, method="GET", data=None, token=None, files=None):
     url = f"{BASE_URL}{path}"

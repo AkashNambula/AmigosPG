@@ -14,7 +14,7 @@ from app.models.notification import Notification
 from app.models.audit import AuditLog
 from app.schemas.booking import BookingOut, BookingStatusUpdate
 from app.dependencies.auth import get_current_active_user, get_current_admin, require_feature
-from app.utils.pdf import generate_booking_pdf
+from app.services.storage import storage_service
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(require_feature("bookings"))])
 

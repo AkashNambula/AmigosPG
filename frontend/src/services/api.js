@@ -1,12 +1,23 @@
 import axios from 'axios';
 
 export const getBackendBaseURL = () => {
-  const url = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-  return url.replace(/\/api$/, '');
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl.replace(/\/api$/, '');
+  let hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
+  if (hostname === 'localhost') hostname = '127.0.0.1';
+  return `http://${hostname}:8001`;
+};
+
+const getDefaultBaseURL = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+  let hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
+  if (hostname === 'localhost') hostname = '127.0.0.1';
+  return `http://${hostname}:8001/api`;
 };
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+  baseURL: getDefaultBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },

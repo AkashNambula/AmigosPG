@@ -29,8 +29,10 @@ import AdminResidents from './pages/AdminResidents';
 import AdminReports from './pages/AdminReports';
 import AdminSettings from './pages/AdminSettings';
 
-// Super Admin Page
+// Super Admin Pages
 import SuperAdmin from './pages/SuperAdmin';
+import SuperAdminAdminControl from './pages/SuperAdminAdminControl';
+import SuperAdminAnalytics from './pages/SuperAdminAnalytics';
 
 // Protected Route Guard
 function ProtectedRoute({ children }) {
@@ -132,7 +134,10 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<SuperAdmin />} />
+            <Route index element={<Navigate to="/super-admin/organizations" replace />} />
+            <Route path="organizations" element={<SuperAdmin />} />
+            <Route path="admin-control" element={<SuperAdminAdminControl />} />
+            <Route path="analytics" element={<SuperAdminAnalytics />} />
           </Route>
 
           {/* User/Tenant routes */}

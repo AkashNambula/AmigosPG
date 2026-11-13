@@ -3,7 +3,7 @@ import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus, Building2, AlertTriangle, HelpCircle } from 'lucide-react';
 import Toast from '../components/Toast';
-import API from '../services/api';
+import API, { getBackendBaseURL } from '../services/api';
 
 const INDIAN_STATES_CITIES = {
   "Andhra Pradesh": ["Anantapur", "Chittoor", "Eluru", "Guntur", "Kakinada", "Kurnool", "Nellore", "Ongole", "Rajahmundry", "Srikakulam", "Tadepalligudem", "Tirupati", "Vijayawada", "Visakhapatnam", "Vizianagaram"],
@@ -384,7 +384,7 @@ export default function Register() {
     );
   }
 
-  const logoSrc = tenantInfo?.logo_url ? `http://localhost:8000${tenantInfo.logo_url}` : null;
+  const logoSrc = tenantInfo?.logo_url ? `${getBackendBaseURL()}${tenantInfo.logo_url}` : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

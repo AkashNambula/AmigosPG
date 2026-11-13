@@ -100,6 +100,7 @@ def startup_event():
             print(f"Migration: Created default tenant AMIGOS MENS LUXURY PG (ID: {amigos_tenant.id}).")
 
         # Backfill tenant_id = amigos_tenant.id for all records with null tenant_id (except super_admin users)
+        target_tables = ["users", "rooms", "bookings", "complaints", "bills", "food_menu", "person_problem_reports", "notifications", "announcements"]
         for tbl in target_tables:
             try:
                 if tbl == "users":

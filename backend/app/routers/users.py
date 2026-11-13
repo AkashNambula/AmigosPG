@@ -106,3 +106,91 @@ def update_user_status(
     db.commit()
     
     return user
+
+from pydantic import BaseModel, Field
+import re
+from app.core.security import hash_password
+
+class AdminUserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    account_status: Optional[str] = None
+    new_password: Optional[str] = None
+
+@router.put("/{user_id}/admin-update", response_model=UserOut)
+def admin_update_user(
+    user_id: int,
+    user_in: AdminUserUpdate,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    query = db.query(User).filter(User.id == user_id)
+    if admin.tenant_id:
+        query = query.filter(User.tenant_id == admin.tenant_id)
+    target_user = query.first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    # 1. Update Names if provided
+    if user_in.first_name is not None and user_in.first_name.strip():
+        name_clean = user_in.first_name.strip()
+        if not re.match(r"^[A-Za-z\s]+$", name_clean):
+            raise HTTPException(status_code=400, detail="First name must contain only letters and spaces.")
+        target_user.first_name = name_clean
+
+    if user_in.last_name is not None and user_in.last_name.strip():
+        name_clean = user_in.last_name.strip()
+        if not re.match(r"^[A-Za-z\s]+$", name_clean):
+            raise HTTPException(status_code=400, detail="Last name must contain only letters and spaces.")
+        target_user.last_name = name_clean
+
+    # 2. Update Email if provided
+    if user_in.email is not None and user_in.email.strip():
+        email_clean = user_in.email.strip().lower()
+        if email_clean != target_user.email:
+            existing = db.query(User).filter(User.email == email_clean, User.id != target_user.id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="A user with this email address already exists.")
+            target_user.email = email_clean
+
+    # 3. Update Phone if provided
+    if user_in.phone is not None and user_in.phone.strip():
+        clean_phone = re.sub(r"\D", "", user_in.phone.strip())
+        if not re.match(r"^[6-9]\d{9}$", clean_phone):
+            raise HTTPException(status_code=400, detail="Please enter a valid 10-digit mobile number starting with 6-9.")
+        target_user.phone = clean_phone
+
+    # 4. Update Status if provided
+    if user_in.account_status is not None:
+        if user_in.account_status not in ["active", "pending", "inactive"]:
+            raise HTTPException(status_code=400, detail="Invalid account status value.")
+        target_user.account_status = user_in.account_status
+
+    # 5. Reset Password if provided
+    if user_in.new_password and user_in.new_password.strip():
+        if len(user_in.new_password.strip()) < 6:
+            raise HTTPException(status_code=400, detail="Password must contain at least 6 characters.")
+        target_user.password_hash = hash_password(user_in.new_password.strip())
+
+    db.commit()
+    db.refresh(target_user)
+
+    # Audit log
+    audit = AuditLog(
+        tenant_id=admin.tenant_id,
+        user_id=admin.id,
+        action="admin_update_user",
+        entity_name="users",
+        entity_id=target_user.id,
+        details=f"Admin {admin.email} updated user {target_user.email}",
+        timestamp=datetime.utcnow()
+    )
+    db.add(audit)
+    db.commit()
+
+    return target_user

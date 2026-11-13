@@ -89,8 +89,9 @@ export default function DashboardLayout() {
   ];
 
   const superAdminLinks = [
-    { name: 'Super Admin Portal', path: '/super-admin', icon: <Building2 className="w-5 h-5 text-amber-400" /> },
-    ...adminLinks
+    { name: 'Organizations', path: '/super-admin/organizations', icon: <Building2 className="w-5 h-5" /> },
+    { name: 'Admin Control', path: '/super-admin/admin-control', icon: <ShieldAlert className="w-5 h-5" /> },
+    { name: 'Analytics', path: '/super-admin/analytics', icon: <BarChart className="w-5 h-5" /> },
   ];
 
   let navLinks = tenantLinks;
@@ -104,8 +105,8 @@ export default function DashboardLayout() {
   navLinks = navLinks.filter(link => isFeatureEnabled(link.featureKey));
 
   const isActive = (path) => {
-    if (path === '/dashboard' || path === '/admin' || path === '/super-admin') {
-      return location.pathname === path;
+    if (path === '/dashboard' || path === '/admin' || path === '/super-admin/organizations') {
+      return location.pathname === path || location.pathname === '/super-admin' || location.pathname === '/super-admin/';
     }
     return location.pathname.startsWith(path);
   };

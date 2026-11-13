@@ -94,6 +94,54 @@ def get_dashboard_stats(
         "monthly_revenue": monthly_revenue
     }
 
+from app.dependencies.auth import get_current_super_admin
+
+@router.get("/superadmin-stats")
+def get_superadmin_analytics_stats(
+    superadmin = Depends(get_current_super_admin),
+    db: Session = Depends(get_db)
+):
+    from app.models.tenant import Tenant
+    total_tenants = db.query(Tenant).count()
+    active_tenants = db.query(Tenant).filter(Tenant.is_active == True).count()
+    inactive_tenants = total_tenants - active_tenants
+    
+    total_admins = db.query(User).filter(User.role == "admin").count()
+    total_residents = db.query(User).filter(User.role == "tenant").count()
+    
+    total_rooms = db.query(Room).count()
+    beds_stats = db.query(
+        func.sum(Room.available_beds).label("available"),
+        func.sum(Room.occupied_beds).label("occupied")
+    ).first()
+    available_beds = int(beds_stats.available or 0) if beds_stats else 0
+    occupied_beds = int(beds_stats.occupied or 0) if beds_stats else 0
+    
+    pending_bookings = db.query(Booking).filter(Booking.status == "PENDING").count()
+    approved_bookings = db.query(Booking).filter(Booking.status == "APPROVED").count()
+    
+    open_complaints = db.query(Complaint).filter(Complaint.status.in_(["OPEN", "IN_PROGRESS"])).count()
+    resolved_complaints = db.query(Complaint).filter(Complaint.status == "RESOLVED").count()
+    
+    revenue_scalar = db.query(func.sum(Bill.total_amount)).filter(Bill.status == "PAID").scalar()
+    total_revenue = float(revenue_scalar or 0.0)
+
+    return {
+        "total_tenants": total_tenants,
+        "active_tenants": active_tenants,
+        "inactive_tenants": inactive_tenants,
+        "total_admins": total_admins,
+        "total_residents": total_residents,
+        "total_rooms": total_rooms,
+        "available_beds": available_beds,
+        "occupied_beds": occupied_beds,
+        "pending_bookings": pending_bookings,
+        "approved_bookings": approved_bookings,
+        "open_complaints": open_complaints,
+        "resolved_complaints": resolved_complaints,
+        "total_revenue": total_revenue
+    }
+
 @router.post("/announcements", response_model=AnnouncementOut, status_code=status.HTTP_201_CREATED)
 def broadcast_announcement(
     ann_in: AnnouncementCreate,

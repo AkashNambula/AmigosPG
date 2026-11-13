@@ -123,7 +123,7 @@ ADMIN_DEFAULT_PHONE=9876543210
    ```
 4. Start the backend:
    ```bash
-   python -m uvicorn app.main:app --reload --port 8000
+   python -m uvicorn app.main:app --reload --port 8001
    ```
 
 *Note: On startup, the script will automatically create the database (`amigos_pg.db`), run table generation, and seed the default admin account: `admin@amigospg.com` / `AdminAmigos123`.*
@@ -145,7 +145,7 @@ ADMIN_DEFAULT_PHONE=9876543210
 ## 7. Verification Tests
 
 To verify backend endpoints and capacity triggers:
-1. Ensure the backend server is running on port 8000.
+1. Ensure the backend server is running on port 8001.
 2. In the `backend/` folder, run:
    ```bash
    python test_api.py
@@ -165,7 +165,7 @@ This application is fully Dockerized using a multi-container architecture.
 
 ### Tech Stack in Docker
 - **ReactJS**: Built statically and served using **Nginx**.
-- **FastAPI**: Served using **Uvicorn** over port 8000.
+- **FastAPI**: Served using **Uvicorn** over port 8001.
 - **PostgreSQL**: Serving as the relational database.
 - **Docker Compose**: Orchestrates networks, health checks, dependency startup ordering, and persistent volumes.
 
@@ -185,8 +185,8 @@ This application is fully Dockerized using a multi-container architecture.
    ```
 5. Once all services report healthy, access the following URLs in your browser:
    - **Frontend App**: [http://localhost](http://localhost)
-   - **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - **Backend Base API**: [http://localhost:8000](http://localhost:8000)
+   - **Backend API Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
+   - **Backend Base API**: [http://localhost:8001](http://localhost:8001)
 
 ### Persistence
 - PostgreSQL database files are saved inside a Docker named volume `pgdata`.
