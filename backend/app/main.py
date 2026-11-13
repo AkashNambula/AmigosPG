@@ -33,7 +33,11 @@ app.add_middleware(
 )
 
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import JSONResponse
+import logging
+
+logger = logging.getLogger("uvicorn.error")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -57,6 +61,26 @@ async def validation_exception_handler(request, exc):
     return JSONResponse(
         status_code=400,
         content={"detail": "Invalid input data."}
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc):
+    logger.error(f"Unhandled server error: {exc}", exc_info=True)
+    if settings.ENVIRONMENT == "production":
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "An internal server error occurred. Please contact the administrator if the issue persists."}
+        )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)}
     )
 
 # Startup directories creation and database admin seeding
@@ -126,25 +150,26 @@ def startup_event():
 
         # 3. Seed Super Admin account
         super_admin = db.query(User).filter(User.role == "super_admin").first()
+        super_email = settings.SUPERADMIN_DEFAULT_EMAIL.lower()
         if not super_admin:
             super_admin_user = User(
                 first_name="Super",
                 last_name="Admin",
-                email="superadmin@amigospg.com",
-                phone="9999999999",
+                email=super_email,
+                phone=settings.SUPERADMIN_DEFAULT_PHONE,
                 state="Karnataka",
                 city="Bengaluru",
-                password_hash=hash_password("SuperAdmin123"),
+                password_hash=hash_password(settings.SUPERADMIN_DEFAULT_PASSWORD),
                 role="super_admin",
                 account_status="active",
                 tenant_id=None
             )
             db.add(super_admin_user)
             db.commit()
-            print("Super Admin created successfully: superadmin@amigospg.com / SuperAdmin123")
+            print(f"Super Admin created successfully with email: {super_email}")
         else:
             if super_admin.phone == "0000000000":
-                super_admin.phone = "9999999999"
+                super_admin.phone = settings.SUPERADMIN_DEFAULT_PHONE
             if super_admin.tenant_id is not None:
                 super_admin.tenant_id = None
             db.commit()
@@ -211,15 +236,11 @@ def startup_event():
     finally:
         db.close()
 
-# Mount public upload directories statically
-if os.path.exists(os.path.join(settings.UPLOAD_DIR, "rooms")):
-    app.mount("/uploads/rooms", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "rooms")), name="rooms_static")
-if os.path.exists(os.path.join(settings.UPLOAD_DIR, "complaints")):
-    app.mount("/uploads/complaints", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "complaints")), name="complaints_static")
-if os.path.exists(os.path.join(settings.UPLOAD_DIR, "logos")):
-    app.mount("/uploads/logos", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "logos")), name="logos_static")
-if os.path.exists(os.path.join(settings.UPLOAD_DIR, "profiles")):
-    app.mount("/uploads/profiles", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "profiles")), name="profiles_static")
+# Mount public upload directories statically (ensuring paths exist)
+for sub_dir in ["rooms", "complaints", "logos", "profiles"]:
+    full_path = os.path.join(settings.UPLOAD_DIR, sub_dir)
+    os.makedirs(full_path, exist_ok=True)
+    app.mount(f"/uploads/{sub_dir}", StaticFiles(directory=full_path), name=f"{sub_dir}_static")
 
 # Include Routers
 app.include_router(tenants.public_router, prefix=settings.API_V1_STR)

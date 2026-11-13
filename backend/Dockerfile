@@ -17,5 +17,5 @@ COPY . .
 # Expose backend port
 EXPOSE 8001
 
-# Run backend using Uvicorn (supports default port 8001 and dynamic cloud $PORT e.g. on Render)
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+# Run database migrations and start backend using Uvicorn
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]

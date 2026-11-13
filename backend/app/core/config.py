@@ -25,12 +25,17 @@ class Settings:
     S3_ACCESS_KEY_ID: str = os.getenv("S3_ACCESS_KEY_ID", "")
     S3_SECRET_ACCESS_KEY: str = os.getenv("S3_SECRET_ACCESS_KEY", "")
     
-    # Parse CORS_ORIGINS
-    cors_origins_raw = os.getenv("CORS_ORIGINS", '[]')
-    try:
-        CORS_ORIGINS: list = json.loads(cors_origins_raw)
-    except Exception:
-        CORS_ORIGINS: list = []
+    # Parse CORS_ORIGINS (supports JSON array or comma-separated list)
+    cors_origins_raw = os.getenv("CORS_ORIGINS", "").strip()
+    CORS_ORIGINS: list = []
+    if cors_origins_raw:
+        if cors_origins_raw.startswith("["):
+            try:
+                CORS_ORIGINS = json.loads(cors_origins_raw)
+            except Exception:
+                CORS_ORIGINS = []
+        else:
+            CORS_ORIGINS = [orig.strip() for orig in cors_origins_raw.split(",") if orig.strip()]
         
     # Append dev loopback origins ONLY in non-production environments
     if os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).lower() != "production":
@@ -48,6 +53,10 @@ class Settings:
     ADMIN_DEFAULT_PASSWORD: str = os.getenv("ADMIN_DEFAULT_PASSWORD", "AdminAmigos123")
     ADMIN_DEFAULT_PHONE: str = os.getenv("ADMIN_DEFAULT_PHONE", "9876543210")
 
+    SUPERADMIN_DEFAULT_EMAIL: str = os.getenv("SUPERADMIN_DEFAULT_EMAIL", "superadmin@amigospg.com")
+    SUPERADMIN_DEFAULT_PASSWORD: str = os.getenv("SUPERADMIN_DEFAULT_PASSWORD", "SuperAdmin123")
+    SUPERADMIN_DEFAULT_PHONE: str = os.getenv("SUPERADMIN_DEFAULT_PHONE", "9999999999")
+
     def validate_production_config(self):
         unsafe_jwt_defaults = [
             "amigos_pg_super_secret_key_change_me_in_production_123456",
@@ -58,10 +67,12 @@ class Settings:
         ]
         unsafe_admin_passwords = [
             "AdminAmigos123",
+            "SuperAdmin123",
             "admin",
             "password",
             "123456",
-            "CHANGE_ME_ADMIN_PASSWORD"
+            "CHANGE_ME_ADMIN_PASSWORD",
+            "CHANGE_ME_SUPERADMIN_PASSWORD"
         ]
 
         if self.ENVIRONMENT == "production":
@@ -82,6 +93,12 @@ class Settings:
             if not self.ADMIN_DEFAULT_PASSWORD or self.ADMIN_DEFAULT_PASSWORD in unsafe_admin_passwords:
                 raise RuntimeError(
                     "CRITICAL PRODUCTION CONFIG ERROR: ADMIN_DEFAULT_PASSWORD must be set to a secure non-default password when ENVIRONMENT=production."
+                )
+
+            # 4. Super Admin Seed Password Check
+            if not self.SUPERADMIN_DEFAULT_PASSWORD or self.SUPERADMIN_DEFAULT_PASSWORD in unsafe_admin_passwords:
+                raise RuntimeError(
+                    "CRITICAL PRODUCTION CONFIG ERROR: SUPERADMIN_DEFAULT_PASSWORD must be set to a secure non-default password when ENVIRONMENT=production."
                 )
 
 settings = Settings()

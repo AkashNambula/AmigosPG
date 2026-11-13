@@ -3,6 +3,7 @@ import axios from 'axios';
 export const getBackendBaseURL = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl.replace(/\/api$/, '');
+  if (import.meta.env.PROD) return '';
   let hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
   if (hostname === 'localhost') hostname = '127.0.0.1';
   return `http://${hostname}:8001`;
@@ -11,6 +12,7 @@ export const getBackendBaseURL = () => {
 const getDefaultBaseURL = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl;
+  if (import.meta.env.PROD) return '/api';
   let hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1';
   if (hostname === 'localhost') hostname = '127.0.0.1';
   return `http://${hostname}:8001/api`;

@@ -7,7 +7,7 @@ A complete, production-ready, database-driven full-stack web application designe
 ## 1. Tech Stack
 
 - **Frontend**: React.js, Vite, Tailwind CSS, React Router v6, Axios, Lucide React (icons).
-- **Backend**: Python 3.14+, FastAPI, SQLAlchemy ORM, Pydantic v2, PyJWT (tokens), Bcrypt (password hashing), ReportLab (PDF rendering).
+- **Backend**: Python 3.11+ (Python 3.11-slim container), FastAPI, SQLAlchemy ORM, Pydantic v2, PyJWT (tokens), Bcrypt (password hashing), ReportLab (PDF rendering).
 - **Database**: PostgreSQL (using SQLite for out-of-the-box zero-config local testing).
 - **Storage**: Local filesystem storage (`backend/uploads/`) with paths stored in the database. 
 
@@ -79,9 +79,10 @@ The application uses SQLAlchemy to model the relational database. Database table
 
 ## 4. Environment Variables
 
-Create a `.env` file in the `backend/` directory:
-
+### Local Development (`backend/.env`)
+For local zero-config testing using SQLite:
 ```env
+ENVIRONMENT=development
 DATABASE_URL=sqlite:///./amigos_pg.db
 JWT_SECRET_KEY=amigos_pg_super_secret_key_change_me_in_production_123456
 JWT_ALGORITHM=HS256
@@ -91,6 +92,32 @@ CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000"]
 ADMIN_DEFAULT_EMAIL=admin@amigospg.com
 ADMIN_DEFAULT_PASSWORD=AdminAmigos123
 ADMIN_DEFAULT_PHONE=9876543210
+SUPERADMIN_DEFAULT_EMAIL=superadmin@amigospg.com
+SUPERADMIN_DEFAULT_PASSWORD=SuperAdmin123
+SUPERADMIN_DEFAULT_PHONE=9999999999
+```
+
+### Production Deployment (`.env` in repository root)
+Refer to `.env.example` in the project root. In production mode (`ENVIRONMENT=production`), the application strictly validates that passwords and JWT secret keys are non-default and that PostgreSQL is connected.
+```env
+ENVIRONMENT=production
+DATABASE_URL=postgresql://postgres:STRONG_DB_PASSWORD@db:5432/amigos_pg
+POSTGRES_DB=amigos_pg
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=STRONG_DB_PASSWORD
+JWT_SECRET_KEY=USE_A_STRONG_RANDOM_SECRET_MIN_32_CHARS
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+STORAGE_BACKEND=local
+UPLOAD_DIR=uploads
+CORS_ORIGINS=["https://your-domain.com", "http://your-ec2-ip"]
+ADMIN_DEFAULT_EMAIL=admin@amigospg.com
+ADMIN_DEFAULT_PASSWORD=STRONG_ADMIN_PASSWORD
+ADMIN_DEFAULT_PHONE=9876543210
+SUPERADMIN_DEFAULT_EMAIL=superadmin@amigospg.com
+SUPERADMIN_DEFAULT_PASSWORD=STRONG_SUPERADMIN_PASSWORD
+SUPERADMIN_DEFAULT_PHONE=9999999999
+VITE_API_URL=
 ```
 
 ---
@@ -159,36 +186,112 @@ To verify backend endpoints and capacity triggers:
 
 ---
 
-## 9. Docker Deployment
+## 9. Production Deployment on AWS EC2 (Docker Compose)
 
-This application is fully Dockerized using a multi-container architecture.
+The application is fully containerized and production-ready for deployment on a single AWS EC2 instance (e.g. `t3.small` or `t3.medium` running Ubuntu 22.04 / 24.04 LTS).
 
-### Tech Stack in Docker
-- **ReactJS**: Built statically and served using **Nginx**.
-- **FastAPI**: Served using **Uvicorn** over port 8001.
-- **PostgreSQL**: Serving as the relational database.
-- **Docker Compose**: Orchestrates networks, health checks, dependency startup ordering, and persistent volumes.
+### Architecture in Docker
+- **Frontend (`amigos_pg_frontend`)**: Vite React production build served via **Nginx** on port 80. Nginx acts as the reverse proxy for `/api/`, `/uploads/`, and `/docs`, with 25MB upload limits and gzip compression.
+- **Backend (`amigos_pg_backend`)**: FastAPI running on Python 3.11-slim, automatically executing Alembic migrations (`alembic upgrade head`) before launching Uvicorn on port 8001. Port 8001 is kept private and bound only to loopback (`127.0.0.1:8001`).
+- **Database (`amigos_pg_db`)**: PostgreSQL 15 Alpine with health checks. Port 5432 is kept internal within the Docker network and is never exposed publicly.
+- **Network (`amigos_network`)**: Isolated Docker bridge network for inter-container communication.
+- **Volumes**:
+  - `pgdata`: Persistent PostgreSQL relational database storage.
+  - `uploads_data`: Persistent document and proof upload storage mounted at `/app/uploads`.
 
-### Local Setup via Docker
-1. Make sure **Docker** and **Docker Compose** are installed and running.
-2. Clone the repository and navigate to the root directory:
-   ```bash
-   cd "Amigos pg"
-   ```
-3. Copy the `.env.example` file to `.env` (the compose environment automatically reads this root file):
-   ```bash
-   cp .env.example .env
-   ```
-4. Spin up the containers using Docker Compose:
-   ```bash
-   docker compose up --build
-   ```
-5. Once all services report healthy, access the following URLs in your browser:
-   - **Frontend App**: [http://localhost](http://localhost)
-   - **Backend API Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
-   - **Backend Base API**: [http://localhost:8001](http://localhost:8001)
+### AWS EC2 Step-by-Step Deployment Guide
 
-### Persistence
-- PostgreSQL database files are saved inside a Docker named volume `pgdata`.
-- Identity documents (Aadhaar, passport photos) and payment screenshot proofs are preserved across container lifecycles in the `uploads_data` Docker volume.
+#### 1. EC2 Security Group Configuration
+In the AWS EC2 Console, configure your instance's Inbound Security Group rules:
+- **Port 22 (SSH)**: Accessible from your IP address.
+- **Port 80 (HTTP)**: Accessible from anywhere (`0.0.0.0/0`).
+- **Port 443 (HTTPS)**: Accessible from anywhere (`0.0.0.0/0`, for future SSL).
+- *(Do NOT open ports 5432 or 8001; they are kept secure behind Docker and Nginx).*
+
+#### 2. Install Docker & Docker Compose on EC2
+Connect to your EC2 instance via SSH and run:
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y docker.io docker-compose
+sudo systemctl enable docker
+sudo systemctl start docker
+sudo usermod -aG docker $USER
+# Log out and log back in, or run 'newgrp docker' to apply group permissions
+```
+
+#### 3. Clone Repository & Setup Environment
+```bash
+git clone https://github.com/AkashNambula/AmigosPG.git
+cd AmigosPG
+
+# Create production environment file from template
+cp .env.example .env
+```
+
+#### 4. Configure Production Secrets
+Edit `.env` using your preferred editor:
+```bash
+nano .env
+```
+Ensure you provide strong, non-default values:
+- `POSTGRES_PASSWORD`: A strong random password.
+- `DATABASE_URL`: `postgresql://postgres:<YOUR_POSTGRES_PASSWORD>@db:5432/amigos_pg`
+- `JWT_SECRET_KEY`: A cryptographically strong secret at least 32 characters long (`openssl rand -hex 32`).
+- `ADMIN_DEFAULT_PASSWORD`: A secure admin password.
+- `SUPERADMIN_DEFAULT_PASSWORD`: A secure super-admin password.
+- `CORS_ORIGINS`: `["http://<YOUR_EC2_PUBLIC_IP>", "https://<YOUR_DOMAIN>"]`
+
+#### 5. Build and Launch Containers
+```bash
+docker-compose up --build -d
+```
+
+#### 6. Verify Service Health
+Check that all containers are healthy:
+```bash
+docker-compose ps
+```
+You should see:
+- `amigos_pg_db`: `Up (healthy)`
+- `amigos_pg_backend`: `Up (healthy)`
+- `amigos_pg_frontend`: `Up`
+
+Access your application:
+- **Frontend Web Portal**: `http://<YOUR_EC2_PUBLIC_IP>`
+- **API Documentation**: `http://<YOUR_EC2_PUBLIC_IP>/docs`
+- **Health Check**: `http://<YOUR_EC2_PUBLIC_IP>/api/tenants`
+
+---
+
+## 10. Troubleshooting & Operations
+
+### View Live Logs
+```bash
+# View all container logs
+docker-compose logs -f
+
+# View backend logs only
+docker-compose logs -f backend
+
+# View database logs only
+docker-compose logs -f db
+```
+
+### Restarting Services
+```bash
+docker-compose restart
+```
+
+### Stopping Services
+```bash
+docker-compose down
+```
+*(Database data in `pgdata` and uploaded files in `uploads_data` will be safely preserved).*
+
+### Running Database Migrations Manually
+Alembic migrations run automatically on container startup. To inspect or run migrations manually:
+```bash
+docker-compose exec backend alembic current
+docker-compose exec backend alembic upgrade head
+```
 
