@@ -61,3 +61,47 @@ def mark_read_by_id(
     db.commit()
     db.refresh(notify)
     return notify
+
+@router.put("/{notification_id}/unread", response_model=NotificationOut)
+def mark_unread_by_id(
+    notification_id: int,
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    notify = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
+    
+    if not notify:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found."
+        )
+        
+    notify.is_read = False
+    db.commit()
+    db.refresh(notify)
+    return notify
+
+@router.put("/{notification_id}/toggle-read", response_model=NotificationOut)
+def toggle_read_by_id(
+    notification_id: int,
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    notify = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
+    
+    if not notify:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found."
+        )
+        
+    notify.is_read = not notify.is_read
+    db.commit()
+    db.refresh(notify)
+    return notify
